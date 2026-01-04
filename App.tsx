@@ -27,7 +27,6 @@ const App: React.FC = () => {
   const audioRef = useRef<HTMLAudioElement>(null);
   const currentSong = songs[currentIndex];
 
-  // Load playlists from localStorage on init
   useEffect(() => {
     const savedPlaylists = localStorage.getItem('nocturne_playlists');
     if (savedPlaylists) {
@@ -41,11 +40,13 @@ const App: React.FC = () => {
     const params = new URLSearchParams(window.location.search);
     if (params.get('mode') === 'shared') {
       setIsSharedMode(true);
+      // 分享模式默认视图可以是 PLAYER 或 VIDEO，根据参数决定
+      const view = params.get('view');
+      if (view === 'video') setCurrentView(ViewMode.VIDEO);
     }
     loadSongs();
   }, []);
 
-  // Save playlists to localStorage
   useEffect(() => {
     localStorage.setItem('nocturne_playlists', JSON.stringify(playlists));
   }, [playlists]);
@@ -142,28 +143,59 @@ const App: React.FC = () => {
   if (isSharedMode) {
     return (
       <div className="h-screen w-screen bg-[#020202] flex flex-col overflow-hidden text-white">
-        <header className="h-14 px-6 flex items-center justify-between border-b border-white/5 bg-black/60 backdrop-blur-2xl z-[80]">
-          <div className="flex items-center space-x-2">
+        <header className="h-16 px-8 flex items-center justify-between border-b border-white/5 bg-black/40 backdrop-blur-3xl z-[100] fixed top-0 left-0 right-0">
+          <div className="flex items-center space-x-3">
             <div className="w-8 h-8 bg-red-600 rounded-lg flex items-center justify-center">
               <i className="fa-solid fa-music text-white text-xs"></i>
             </div>
-            <span className="text-sm font-bold tracking-tight">私人映射曲库</span>
+            <div className="flex flex-col">
+              <span className="text-xs font-black tracking-widest uppercase">Nocturne Space</span>
+              <span className="text-[8px] text-zinc-500 font-bold uppercase tracking-tighter">Private Shared Station</span>
+            </div>
           </div>
-          <span className="text-[10px] text-zinc-500 uppercase font-black">Shared Mode</span>
+          
+          <div className="flex items-center bg-white/5 rounded-full p-1 border border-white/5">
+            <button 
+              onClick={() => setCurrentView(ViewMode.PLAYER)}
+              className={`px-5 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest transition-all ${currentView === ViewMode.PLAYER ? 'bg-red-600 text-white' : 'text-zinc-500 hover:text-zinc-300'}`}
+            >
+              子夜旋律
+            </button>
+            <button 
+              onClick={() => setCurrentView(ViewMode.VIDEO)}
+              className={`px-5 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest transition-all ${currentView === ViewMode.VIDEO ? 'bg-red-600 text-white' : 'text-zinc-500 hover:text-zinc-300'}`}
+            >
+              深夜映画
+            </button>
+          </div>
+
+          <div className="hidden md:flex items-center space-x-2">
+             <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse"></span>
+             <span className="text-[9px] text-zinc-500 font-black uppercase tracking-widest">Live Now</span>
+          </div>
         </header>
 
-        {isLoading ? (
-          <div className="flex-1 flex items-center justify-center">
-             <div className="w-8 h-8 border-2 border-red-600 border-t-transparent rounded-full animate-spin"></div>
-          </div>
-        ) : (
-          <MusicPlayer 
-            songs={songs} currentIndex={currentIndex} onIndexChange={setCurrentIndex} shared={true}
-            isPlaying={isPlaying} onTogglePlay={handleTogglePlay} currentTime={currentTime} duration={duration}
-            onSeek={(t) => audioRef.current && (audioRef.current.currentTime = t)} audioRef={audioRef}
-            playbackMode={playbackMode} onModeChange={setPlaybackMode}
-          />
-        )}
+        <main className="flex-1 mt-16 overflow-hidden flex flex-col relative">
+          {isLoading ? (
+            <div className="flex-1 flex items-center justify-center">
+               <div className="w-8 h-8 border-2 border-red-600 border-t-transparent rounded-full animate-spin"></div>
+            </div>
+          ) : (
+            <>
+              {currentView === ViewMode.PLAYER && (
+                <MusicPlayer 
+                  songs={songs} currentIndex={currentIndex} onIndexChange={setCurrentIndex} shared={true}
+                  isPlaying={isPlaying} onTogglePlay={handleTogglePlay} currentTime={currentTime} duration={duration}
+                  onSeek={(t) => audioRef.current && (audioRef.current.currentTime = t)} audioRef={audioRef}
+                  playbackMode={playbackMode} onModeChange={setPlaybackMode}
+                />
+              )}
+              {currentView === ViewMode.VIDEO && (
+                <VideoSection shared={true} />
+              )}
+            </>
+          )}
+        </main>
         {renderAudioEngine()}
       </div>
     );
