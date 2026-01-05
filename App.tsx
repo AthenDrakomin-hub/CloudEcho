@@ -40,9 +40,8 @@ const App: React.FC = () => {
     const params = new URLSearchParams(window.location.search);
     if (params.get('mode') === 'shared') {
       setIsSharedMode(true);
-      // 分享模式默认视图可以是 PLAYER 或 VIDEO，根据参数决定
-      const view = params.get('view');
-      if (view === 'video') setCurrentView(ViewMode.VIDEO);
+      const viewParam = params.get('view');
+      if (viewParam === 'video') setCurrentView(ViewMode.VIDEO);
     }
     loadSongs();
   }, []);
@@ -143,35 +142,38 @@ const App: React.FC = () => {
   if (isSharedMode) {
     return (
       <div className="h-screen w-screen bg-[#020202] flex flex-col overflow-hidden text-white">
-        <header className="h-16 px-8 flex items-center justify-between border-b border-white/5 bg-black/40 backdrop-blur-3xl z-[100] fixed top-0 left-0 right-0">
+        <header className="h-16 px-6 md:px-12 flex items-center justify-between border-b border-white/5 bg-black/40 backdrop-blur-2xl z-[100] fixed top-0 left-0 right-0">
           <div className="flex items-center space-x-3">
-            <div className="w-8 h-8 bg-red-600 rounded-lg flex items-center justify-center">
-              <i className="fa-solid fa-music text-white text-xs"></i>
+            <div className="w-8 h-8 bg-red-600 rounded-lg flex items-center justify-center shadow-lg shadow-red-600/20">
+              <i className="fa-solid fa-moon text-white text-xs"></i>
             </div>
             <div className="flex flex-col">
-              <span className="text-xs font-black tracking-widest uppercase">Nocturne Space</span>
-              <span className="text-[8px] text-zinc-500 font-bold uppercase tracking-tighter">Private Shared Station</span>
+              <span className="text-xs font-black tracking-widest uppercase italic">Nocturne Echo</span>
+              <span className="text-[8px] text-zinc-500 font-bold uppercase tracking-tighter">Private Shared Space</span>
             </div>
           </div>
           
           <div className="flex items-center bg-white/5 rounded-full p-1 border border-white/5">
             <button 
               onClick={() => setCurrentView(ViewMode.PLAYER)}
-              className={`px-5 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest transition-all ${currentView === ViewMode.PLAYER ? 'bg-red-600 text-white' : 'text-zinc-500 hover:text-zinc-300'}`}
+              className={`px-4 md:px-6 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest transition-all ${currentView === ViewMode.PLAYER ? 'bg-red-600 text-white' : 'text-zinc-500 hover:text-zinc-300'}`}
             >
               子夜旋律
             </button>
             <button 
               onClick={() => setCurrentView(ViewMode.VIDEO)}
-              className={`px-5 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest transition-all ${currentView === ViewMode.VIDEO ? 'bg-red-600 text-white' : 'text-zinc-500 hover:text-zinc-300'}`}
+              className={`px-4 md:px-6 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest transition-all ${currentView === ViewMode.VIDEO ? 'bg-red-600 text-white' : 'text-zinc-500 hover:text-zinc-300'}`}
             >
               深夜映画
             </button>
           </div>
 
-          <div className="hidden md:flex items-center space-x-2">
-             <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse"></span>
-             <span className="text-[9px] text-zinc-500 font-black uppercase tracking-widest">Live Now</span>
+          <div className="hidden md:flex items-center space-x-3">
+             <div className="flex flex-col items-end">
+               <span className="text-[9px] text-green-500 font-black uppercase tracking-widest">Online Now</span>
+               <span className="text-[8px] text-zinc-600 font-bold">V-Space Mapping</span>
+             </div>
+             <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></div>
           </div>
         </header>
 
@@ -181,7 +183,7 @@ const App: React.FC = () => {
                <div className="w-8 h-8 border-2 border-red-600 border-t-transparent rounded-full animate-spin"></div>
             </div>
           ) : (
-            <>
+            <div className="flex-1 animate-in fade-in duration-700">
               {currentView === ViewMode.PLAYER && (
                 <MusicPlayer 
                   songs={songs} currentIndex={currentIndex} onIndexChange={setCurrentIndex} shared={true}
@@ -193,7 +195,7 @@ const App: React.FC = () => {
               {currentView === ViewMode.VIDEO && (
                 <VideoSection shared={true} />
               )}
-            </>
+            </div>
           )}
         </main>
         {renderAudioEngine()}

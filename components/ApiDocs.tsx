@@ -23,7 +23,7 @@ const ApiDocs: React.FC = () => {
              <h1 className="text-4xl font-black text-white tracking-tighter italic">映射分享中心</h1>
           </div>
           <p className="text-zinc-500 text-sm leading-relaxed max-w-xl">
-            我们将您的私有云端资源，通过映射链接转化为一个面向访客的沉浸式视听空间。无需额外操作，访客即可同步聆听您的曲库与观看精选视频。
+            映射链接现已升级为<strong>全功能视听空间 (V-Space)</strong>。通过一个链接，访客即可在您的私有音乐库与精选放映厅之间自由切换，享受完整的沉浸式体验。
           </p>
         </header>
 
@@ -33,7 +33,7 @@ const ApiDocs: React.FC = () => {
               <h2 className="text-sm font-black text-white uppercase tracking-widest">全局视听映射 (V-Space)</h2>
               <p className="text-[10px] text-zinc-600 font-bold mt-1">Status: Fully Operational</p>
             </div>
-            <span className="text-[10px] text-green-500 font-black px-3 py-1 bg-green-500/10 rounded-full border border-green-500/10">暗网同步中</span>
+            <span className="text-[10px] text-green-500 font-black px-3 py-1 bg-green-500/10 rounded-full border border-green-500/10">同步就绪</span>
           </div>
           
           <div className="bg-black/40 rounded-3xl p-8 border border-white/5 flex flex-col md:flex-row items-center justify-between gap-8">
@@ -56,15 +56,15 @@ const ApiDocs: React.FC = () => {
               <div className="w-8 h-8 rounded-lg bg-white/5 flex items-center justify-center">
                 <i className="fa-solid fa-compact-disc text-zinc-400 text-xs"></i>
               </div>
-              <h4 className="text-[11px] font-black text-white uppercase tracking-widest">子夜旋律</h4>
-              <p className="text-[11px] text-zinc-600 leading-relaxed font-bold">映射您在 `free music` 目录下的所有音频文件，访客可使用完整黑胶播放器。</p>
+              <h4 className="text-[11px] font-black text-white uppercase tracking-widest">子夜旋律 (Audio)</h4>
+              <p className="text-[11px] text-zinc-600 leading-relaxed font-bold">访客可聆听您在 `free music` 目录下的所有音频，支持黑胶动态视觉。</p>
             </div>
             <div className="p-8 bg-white/[0.02] rounded-3xl border border-white/5 space-y-3">
               <div className="w-8 h-8 rounded-lg bg-white/5 flex items-center justify-center">
                 <i className="fa-solid fa-clapperboard text-zinc-400 text-xs"></i>
               </div>
-              <h4 className="text-[11px] font-black text-white uppercase tracking-widest">深夜映画</h4>
-              <p className="text-[11px] text-zinc-600 leading-relaxed font-bold">同步展示 `jingxuanshipin` 目录下的视频资源，为访客提供私密放映厅体验。</p>
+              <h4 className="text-[11px] font-black text-white uppercase tracking-widest">深夜映画 (Video)</h4>
+              <p className="text-[11px] text-zinc-600 leading-relaxed font-bold">实时同步 `jingxuanshipin` 目录下的影片，支持 4K/1080P 沉浸式放映。</p>
             </div>
           </div>
         </section>
@@ -73,14 +73,14 @@ const ApiDocs: React.FC = () => {
            <div className="flex items-start space-x-4">
               <i className="fa-solid fa-shield-halved text-red-600 mt-1"></i>
               <div className="space-y-1">
-                 <h4 className="text-[11px] font-black text-white uppercase tracking-widest">隐身安全模式</h4>
-                 <p className="text-[11px] text-zinc-500 font-bold leading-relaxed">分享模式下，所有管理接口（上传、重命名、删除）均被服务端及客户端代码层面强制屏蔽，访客无法对您的云端存储进行任何更改。</p>
+                 <h4 className="text-[11px] font-black text-white uppercase tracking-widest">隐身安全与权限隔离</h4>
+                 <p className="text-[11px] text-zinc-500 font-bold leading-relaxed">分享页面采用完全只读架构。所有涉及修改的操作（上传、删除、重命名）均已从客户端界面中移除，并受服务端 Key 验证保护。访客仅能浏览与播放。</p>
               </div>
            </div>
         </section>
 
         <footer className="text-center pt-10 opacity-20">
-           <p className="text-[10px] uppercase font-black tracking-[0.5em] text-zinc-500 italic">Nocturne Echo · Multi-Modal Mapping System</p>
+           <p className="text-[10px] uppercase font-black tracking-[0.5em] text-zinc-500 italic">Nocturne Space · High-End Mapping Solutions</p>
         </footer>
       </div>
     </div>

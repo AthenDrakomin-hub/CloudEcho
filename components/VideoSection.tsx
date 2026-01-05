@@ -14,7 +14,7 @@ const VideoSection: React.FC<VideoSectionProps> = ({ onPlaySong, shared = false 
   const [loading, setLoading] = useState(true);
   const [activeVideo, setActiveVideo] = useState<Video | null>(null);
   const [isUploading, setIsUploading] = useState(false);
-  const [activeTab, setActiveTab] = useState<'player' | 'manage'>('player');
+  const [activeTab, setActiveTab] = useState<'player' | 'manage'>(shared ? 'player' : 'player');
   const [searchQuery, setSearchQuery] = useState('');
   const [uploadProgress, setUploadProgress] = useState(0);
   const [currentUploadingFile, setCurrentUploadingFile] = useState<string | null>(null);
@@ -44,11 +44,13 @@ const VideoSection: React.FC<VideoSectionProps> = ({ onPlaySong, shared = false 
 
   const handleVideoClick = (video: Video) => {
     setActiveVideo(video);
-    setActiveTab('player');
+    if (!shared) {
+       setActiveTab('player');
+    }
   };
 
   const processUpload = async (files: File[] | FileList) => {
-    if (files.length === 0) return;
+    if (shared || files.length === 0) return;
     setIsUploading(true);
     setUploadProgress(0);
     
@@ -108,6 +110,7 @@ const VideoSection: React.FC<VideoSectionProps> = ({ onPlaySong, shared = false 
 
   const handleDeleteVideo = async (e: React.MouseEvent, video: Video) => {
     e.stopPropagation();
+    if (shared) return;
     if (!confirm(`确定永久删除视频 "${video.name}" 吗？`)) return;
     
     const urlParts = video.url.split('/');
@@ -123,6 +126,7 @@ const VideoSection: React.FC<VideoSectionProps> = ({ onPlaySong, shared = false 
 
   const handleRenameVideo = async (e: React.MouseEvent, video: Video) => {
     e.stopPropagation();
+    if (shared) return;
     const newName = prompt("重命名视频文件 (不含扩展名):", video.name);
     if (!newName || newName.trim() === video.name) return;
 
@@ -203,7 +207,7 @@ const VideoSection: React.FC<VideoSectionProps> = ({ onPlaySong, shared = false 
             <div className="w-8 h-8 border-2 border-red-600 border-t-transparent rounded-full animate-spin"></div>
             <p className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest italic">正在扫描云端资源...</p>
           </div>
-        ) : activeTab === 'player' ? (
+        ) : (activeTab === 'player' || shared) ? (
           activeVideo ? (
             <>
               <video 
@@ -232,19 +236,21 @@ const VideoSection: React.FC<VideoSectionProps> = ({ onPlaySong, shared = false 
               <div className="space-y-4">
                 <div className="space-y-1">
                   <p className="text-zinc-500 font-bold tracking-widest uppercase">暂无播放中的视频</p>
-                  <p className="text-[10px] text-zinc-700 uppercase">目录: {S3_CONFIG.videoFolderPrefix}</p>
+                  {!shared && <p className="text-[10px] text-zinc-700 uppercase">目录: {S3_CONFIG.videoFolderPrefix}</p>}
                 </div>
-                <button 
-                  onClick={loadVideos}
-                  className="px-6 py-2 bg-white/5 border border-white/10 rounded-xl text-[10px] font-black uppercase hover:bg-white/10 transition-all"
-                >
-                  <i className="fa-solid fa-arrows-rotate mr-2"></i> 重新扫描
-                </button>
+                {!shared && (
+                  <button 
+                    onClick={loadVideos}
+                    className="px-6 py-2 bg-white/5 border border-white/10 rounded-xl text-[10px] font-black uppercase hover:bg-white/10 transition-all"
+                  >
+                    <i className="fa-solid fa-arrows-rotate mr-2"></i> 重新扫描
+                  </button>
+                )}
               </div>
             </div>
           )
         ) : (
-          /* 管理模式 */
+          /* 管理模式 (仅所有者可见) */
           <div className="w-full h-full p-8 md:p-12 overflow-y-auto bg-[#050505]">
              <div className="max-w-5xl mx-auto space-y-8">
                <div className="flex items-center justify-between border-b border-white/5 pb-6">
@@ -259,13 +265,11 @@ const VideoSection: React.FC<VideoSectionProps> = ({ onPlaySong, shared = false 
                     <button onClick={loadVideos} className="w-10 h-10 rounded-xl bg-white/5 flex items-center justify-center text-zinc-400 hover:text-white transition-all">
                       <i className={`fa-solid fa-arrows-rotate ${loading ? 'animate-spin' : ''}`}></i>
                     </button>
-                    {!shared && (
-                      <label className="cursor-pointer bg-red-600 text-white px-6 py-3 rounded-2xl text-[11px] font-black uppercase tracking-widest shadow-lg shadow-red-600/20 active:scale-95 transition-all flex items-center space-x-2">
-                         <i className="fa-solid fa-cloud-arrow-up"></i>
-                         <span>上传新视频</span>
-                         <input type="file" className="hidden" onChange={e => handleFileUpload(e.target.files)} accept="video/*" multiple />
-                      </label>
-                    )}
+                    <label className="cursor-pointer bg-red-600 text-white px-6 py-3 rounded-2xl text-[11px] font-black uppercase tracking-widest shadow-lg shadow-red-600/20 active:scale-95 transition-all flex items-center space-x-2">
+                       <i className="fa-solid fa-cloud-arrow-up"></i>
+                       <span>上传新视频</span>
+                       <input type="file" className="hidden" onChange={e => handleFileUpload(e.target.files)} accept="video/*" multiple />
+                    </label>
                   </div>
                </div>
 
@@ -288,12 +292,10 @@ const VideoSection: React.FC<VideoSectionProps> = ({ onPlaySong, shared = false 
                               {new Date(v.lastModified || '').toLocaleDateString()}
                             </p>
                          </div>
-                         {!shared && (
-                           <div className="flex items-center space-x-1">
-                              <button onClick={(e) => handleRenameVideo(e, v)} className="p-2.5 text-zinc-600 hover:text-white transition-colors"><i className="fa-solid fa-pen-nib text-xs"></i></button>
-                              <button onClick={(e) => handleDeleteVideo(e, v)} className="p-2.5 text-zinc-600 hover:text-red-600 transition-colors"><i className="fa-solid fa-trash-can text-xs"></i></button>
-                           </div>
-                         )}
+                         <div className="flex items-center space-x-1">
+                            <button onClick={(e) => handleRenameVideo(e, v)} className="p-2.5 text-zinc-600 hover:text-white transition-colors"><i className="fa-solid fa-pen-nib text-xs"></i></button>
+                            <button onClick={(e) => handleDeleteVideo(e, v)} className="p-2.5 text-zinc-600 hover:text-red-600 transition-colors"><i className="fa-solid fa-trash-can text-xs"></i></button>
+                         </div>
                        </div>
                      </div>
                    ))}
@@ -311,19 +313,27 @@ const VideoSection: React.FC<VideoSectionProps> = ({ onPlaySong, shared = false 
 
       {/* 右侧列表区 */}
       <div className="flex-1 bg-zinc-950/50 backdrop-blur-3xl border-l border-white/5 flex flex-col md:w-80 relative z-[10]">
-        <div className="p-6 border-b border-white/5 flex items-center justify-between bg-black/40">
-           <div className="flex items-center space-x-3">
-             <button onClick={() => setActiveTab('player')} className={`text-[10px] font-black uppercase tracking-widest px-3 py-1 rounded-full transition-all ${activeTab === 'player' ? 'bg-red-600 text-white' : 'text-zinc-500'}`}>播放器</button>
-             <button onClick={() => setActiveTab('manage')} className={`text-[10px] font-black uppercase tracking-widest px-3 py-1 rounded-full transition-all ${activeTab === 'manage' ? 'bg-red-600 text-white' : 'text-zinc-500'}`}>管理</button>
-           </div>
-        </div>
+        {!shared && (
+          <div className="p-6 border-b border-white/5 flex items-center justify-between bg-black/40">
+             <div className="flex items-center space-x-3">
+               <button onClick={() => setActiveTab('player')} className={`text-[10px] font-black uppercase tracking-widest px-3 py-1 rounded-full transition-all ${activeTab === 'player' ? 'bg-red-600 text-white' : 'text-zinc-500'}`}>播放器</button>
+               <button onClick={() => setActiveTab('manage')} className={`text-[10px] font-black uppercase tracking-widest px-3 py-1 rounded-full transition-all ${activeTab === 'manage' ? 'bg-red-600 text-white' : 'text-zinc-500'}`}>管理</button>
+             </div>
+          </div>
+        )}
+
+        {shared && (
+          <div className="p-6 border-b border-white/5 flex items-center justify-center bg-black/40">
+            <span className="text-[10px] font-black text-zinc-400 uppercase tracking-widest">深夜放映厅</span>
+          </div>
+        )}
 
         <div className="flex-1 overflow-y-auto p-4 space-y-3 custom-scrollbar">
            <div className="relative mb-4">
              <i className="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-zinc-700 text-[10px]"></i>
              <input 
                type="text" 
-               placeholder="快速搜索..." 
+               placeholder="查找影片..." 
                className="w-full bg-white/5 border border-white/10 rounded-xl py-2 pl-8 pr-4 text-[10px] focus:outline-none focus:border-red-600 transition-all text-white"
                value={searchQuery}
                onChange={e => setSearchQuery(e.target.value)}
@@ -331,7 +341,7 @@ const VideoSection: React.FC<VideoSectionProps> = ({ onPlaySong, shared = false 
            </div>
 
            {videos.length === 0 && !loading && (
-             <p className="text-center py-10 text-[10px] text-zinc-600 uppercase italic font-bold">空空如也</p>
+             <p className="text-center py-10 text-[10px] text-zinc-600 uppercase italic font-bold">暂无资源</p>
            )}
 
            {videos.map((v, i) => (
