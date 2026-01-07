@@ -1,7 +1,7 @@
 
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { Song, PlaybackMode } from '../types';
-import { EMOTIONAL_QUOTES } from '../constants';
+import { EMOTIONAL_QUOTES, DEFAULT_COVERS } from '../constants';
 
 interface MusicPlayerProps {
   songs: Song[];
@@ -16,16 +16,33 @@ interface MusicPlayerProps {
   audioRef: React.RefObject<HTMLAudioElement | null>;
   playbackMode: PlaybackMode;
   onModeChange: (mode: PlaybackMode) => void;
+  volume: number;
+  onVolumeChange: (v: number) => void;
+  isMuted: boolean;
+  onToggleMute: () => void;
+  ambientRain: number;
+  onAmbientRainChange: (v: number) => void;
+  ambientStatic: number;
+  onAmbientStaticChange: (v: number) => void;
+  sleepTimer: number | null;
+  onSleepTimerChange: (v: number | null) => void;
 }
 
 const MusicPlayer: React.FC<MusicPlayerProps> = ({ 
   songs, currentIndex, onIndexChange, shared = false,
   isPlaying, onTogglePlay, currentTime, duration, onSeek, audioRef,
-  playbackMode, onModeChange
+  playbackMode, onModeChange, volume, onVolumeChange, isMuted, onToggleMute,
+  ambientRain, onAmbientRainChange, ambientStatic, onAmbientStaticChange,
+  sleepTimer, onSleepTimerChange
 }) => {
   const [quoteIndex, setQuoteIndex] = useState(0);
-  const [quoteVisible, setQuoteVisible] = useState(true);
+  const [customCover, setCustomCover] = useState<string | null>(null);
+  const [showFullQueue, setShowFullQueue] = useState(false);
+  const [showVolume, setShowVolume] = useState(false);
+  const [showToolbox, setShowToolbox] = useState(false);
+  const [isPureMode, setIsPureMode] = useState(false);
   
+  const containerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const animationRef = useRef<number>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
@@ -33,21 +50,21 @@ const MusicPlayer: React.FC<MusicPlayerProps> = ({
 
   const currentSong = songs[currentIndex];
 
-  useEffect(() => {
-    // 换歌时刷新随机文案，并添加淡入淡出动画效果
-    setQuoteVisible(false);
-    setTimeout(() => {
-      setQuoteIndex(Math.floor(Math.random() * EMOTIONAL_QUOTES.length));
-      setQuoteVisible(true);
-    }, 500);
-  }, [currentIndex]);
+  const nextUp = useMemo(() => {
+    if (songs.length <= 1) return [];
+    const queue = [];
+    for (let i = 1; i <= 3; i++) {
+      const idx = (currentIndex + i) % songs.length;
+      if (idx !== currentIndex) queue.push({ song: songs[idx], idx });
+    }
+    return queue;
+  }, [currentIndex, songs]);
 
-  const togglePlaybackMode = () => {
-    const modes = [PlaybackMode.SEQUENCE, PlaybackMode.SHUFFLE, PlaybackMode.REPEAT_ONE];
-    const currentIndex = modes.indexOf(playbackMode);
-    const nextMode = modes[(currentIndex + 1) % modes.length];
-    onModeChange(nextMode);
-  };
+  useEffect(() => {
+    setQuoteIndex(Math.floor(Math.random() * EMOTIONAL_QUOTES.length));
+    const randomCover = DEFAULT_COVERS[Math.floor(Math.random() * DEFAULT_COVERS.length)];
+    setCustomCover(randomCover);
+  }, [currentIndex]);
 
   const getModeIcon = () => {
     switch (playbackMode) {
@@ -57,32 +74,21 @@ const MusicPlayer: React.FC<MusicPlayerProps> = ({
     }
   };
 
-  const handleNext = () => {
-    if (songs.length === 0) return;
-    let nextIndex;
-    if (playbackMode === PlaybackMode.SHUFFLE) {
-      nextIndex = Math.floor(Math.random() * songs.length);
-      if (songs.length > 1 && nextIndex === currentIndex) nextIndex = (nextIndex + 1) % songs.length;
-    } else {
-      nextIndex = (currentIndex + 1) % songs.length;
-    }
-    onIndexChange(nextIndex);
-  };
-
-  const handlePrev = () => {
-    onIndexChange((currentIndex - 1 + songs.length) % songs.length);
+  const getVolumeIcon = () => {
+    if (isMuted || volume === 0) return 'fa-volume-xmark';
+    if (volume < 0.3) return 'fa-volume-off';
+    if (volume < 0.7) return 'fa-volume-low';
+    return 'fa-volume-high';
   };
 
   useEffect(() => {
-    if (!canvasRef.current || !audioRef.current) return;
+    if (!canvasRef.current || !audioRef.current || !containerRef.current) return;
     
     const initAudio = () => {
       if (!audioContextRef.current) {
         audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
       }
-      if (audioContextRef.current.state === 'suspended') {
-        audioContextRef.current.resume();
-      }
+      if (audioContextRef.current.state === 'suspended') audioContextRef.current.resume();
       if (!analyserRef.current && audioRef.current) {
         try {
           const analyser = audioContextRef.current.createAnalyser();
@@ -90,7 +96,7 @@ const MusicPlayer: React.FC<MusicPlayerProps> = ({
           source.connect(analyser);
           analyser.connect(audioContextRef.current.destination);
           analyserRef.current = analyser;
-        } catch (e) { console.warn("Analyzer already connected"); }
+        } catch (e) {}
       }
     };
 
@@ -99,30 +105,44 @@ const MusicPlayer: React.FC<MusicPlayerProps> = ({
     const analyser = analyserRef.current;
     if (!analyser) return;
 
-    analyser.fftSize = 256;
+    analyser.fftSize = 128;
     const bufferLength = analyser.frequencyBinCount;
     const dataArray = new Uint8Array(bufferLength);
     const ctx = canvasRef.current.getContext('2d')!;
 
+    let hue = 220; 
+
     const draw = () => {
       animationRef.current = requestAnimationFrame(draw);
       analyser.getByteFrequencyData(dataArray);
-      ctx.clearRect(0, 0, canvasRef.current!.width, canvasRef.current!.height);
       
+      let sum = 0;
+      for(let i = 0; i < 20; i++) sum += dataArray[i];
+      const avg = sum / 20;
+      const intensity = Math.pow(avg / 255, 2);
+      
+      if (containerRef.current) {
+        hue = (220 + (intensity * 140)) % 360; 
+        containerRef.current.style.setProperty('--beat-intensity', intensity.toString());
+        containerRef.current.style.setProperty('--beat-hue', `${hue}deg`);
+        containerRef.current.style.setProperty('--beat-scale', (1 + intensity * 0.04).toString());
+      }
+
+      ctx.clearRect(0, 0, canvasRef.current!.width, canvasRef.current!.height);
       const centerX = canvasRef.current!.width / 2;
       const centerY = canvasRef.current!.height / 2;
-      const radius = window.innerWidth < 768 ? 100 : 160;
+      const radius = isPureMode ? 140 : (window.innerWidth < 768 ? 50 : 110);
 
       for (let i = 0; i < bufferLength; i++) {
-        const barHeight = (dataArray[i] / 255) * (window.innerWidth < 768 ? 40 : 80);
+        const barHeight = (dataArray[i] / 255) * (isPureMode ? 80 : (window.innerWidth < 768 ? 18 : 45));
         const angle = (i * 2 * Math.PI) / bufferLength;
         const x1 = centerX + Math.cos(angle) * radius;
         const y1 = centerY + Math.sin(angle) * radius;
         const x2 = centerX + Math.cos(angle) * (radius + barHeight);
         const y2 = centerY + Math.sin(angle) * (radius + barHeight);
 
-        ctx.strokeStyle = `rgba(194, 12, 12, ${0.2 + (dataArray[i] / 255) * 0.8})`;
-        ctx.lineWidth = window.innerWidth < 768 ? 2 : 3;
+        ctx.strokeStyle = `hsla(${hue}, 70%, 50%, ${0.1 + (dataArray[i] / 255) * 0.7})`;
+        ctx.lineWidth = isPureMode ? 4 : 2 + intensity * 4;
         ctx.lineCap = 'round';
         ctx.beginPath();
         ctx.moveTo(x1, y1);
@@ -130,131 +150,303 @@ const MusicPlayer: React.FC<MusicPlayerProps> = ({
         ctx.stroke();
       }
     };
+    
     draw();
     return () => { if (animationRef.current) cancelAnimationFrame(animationRef.current); };
-  }, [isPlaying, currentSong]);
+  }, [isPlaying, currentSong, isPureMode]);
 
   if (!currentSong) return null;
 
   return (
-    <div className="flex-1 flex flex-col md:flex-row relative overflow-hidden bg-[#020202]">
-      {/* 沉浸式动态背景 */}
-      <div className="absolute inset-0 -z-10 opacity-30 blur-[120px] scale-110 transition-all duration-[2000ms]" style={{ backgroundImage: `url(${currentSong.coverUrl})`, backgroundSize: 'cover', backgroundPosition: 'center' }}></div>
-      <div className="absolute inset-0 bg-black/70 -z-20"></div>
+    <div 
+      ref={containerRef}
+      className={`flex-1 flex flex-col relative h-full min-h-0 overflow-hidden bg-[#020202] transition-all duration-1000 ${isPureMode ? 'cursor-none' : ''}`}
+      onDoubleClick={() => setIsPureMode(!isPureMode)}
+      style={{ 
+        '--beat-intensity': '0',
+        '--beat-hue': '220deg',
+        '--beat-scale': '1'
+      } as React.CSSProperties}
+    >
+      <div className="absolute inset-0 -z-10 transition-all duration-700 pointer-events-none overflow-hidden">
+        <div 
+          className="absolute inset-0 opacity-[0.12] blur-[140px] scale-150 transition-transform duration-500"
+          style={{ 
+            backgroundImage: `url(${customCover || currentSong.coverUrl})`, 
+            backgroundSize: 'cover',
+            backgroundPosition: 'center',
+            filter: `hue-rotate(var(--beat-hue)) saturate(calc(0.8 + var(--beat-intensity)))`,
+            transform: `scale(calc(1.1 + var(--beat-intensity) * 0.2))`
+          }}
+        ></div>
+        <div 
+          className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] rounded-full mix-blend-overlay opacity-30 blur-[150px] transition-all duration-75"
+          style={{ 
+            background: `radial-gradient(circle, hsla(var(--beat-hue), 80%, 50%, 0.6) 0%, transparent 70%)`,
+            transform: `translate(-50%, -50%) scale(calc(0.5 + var(--beat-intensity) * 2))`
+          }}
+        ></div>
+      </div>
 
-      <div className="flex-[1.6] flex flex-col items-center justify-center p-4 md:p-12 relative overflow-hidden">
-        {/* 黑胶视觉容器 */}
-        <div className="relative group cursor-pointer" onClick={onTogglePlay}>
-          <canvas ref={canvasRef} width={600} height={600} className="absolute inset-0 -translate-x-[75px] -translate-y-[75px] md:-translate-x-[90px] md:-translate-y-[90px] z-0 opacity-60 pointer-events-none" />
-          <div className="w-60 h-60 md:w-[26rem] md:h-[26rem] relative rounded-full border-[10px] md:border-[14px] border-[#080808] shadow-[0_30px_90px_rgba(0,0,0,1)] vinyl-border flex items-center justify-center z-10 overflow-hidden ring-1 ring-white/5">
-            <div className={`w-full h-full p-12 md:p-18 ${isPlaying ? 'animate-spin-slow' : 'animate-spin-slow animate-spin-paused'}`}>
-              <div className="w-full h-full rounded-full bg-cover bg-center border-[6px] border-black/80 shadow-2xl" style={{ backgroundImage: `url(${currentSong.coverUrl})` }}>
-                 <div className="absolute inset-0 bg-[radial-gradient(circle,_transparent_30%,_rgba(0,0,0,0.6)_100%)] rounded-full"></div>
+      {isPureMode && (
+        <div className="absolute top-10 left-10 text-[10px] text-zinc-800 font-black uppercase tracking-widest animate-pulse z-[150]">
+          双击返回主界面
+        </div>
+      )}
+
+      <div className={`flex-1 flex flex-col items-center justify-center min-h-0 p-4 relative transition-all duration-700 ${isPureMode ? 'scale-110' : ''}`}>
+        <div 
+          className={`relative cursor-pointer flex items-center justify-center transition-transform duration-75 ${isPureMode ? 'mb-0' : 'mb-6 md:mb-14'}`}
+          style={{ transform: `scale(var(--beat-scale))` }}
+          onClick={onTogglePlay}
+        >
+          <canvas 
+            ref={canvasRef} 
+            width={isPureMode ? 600 : (window.innerWidth < 768 ? 260 : 460)} 
+            height={isPureMode ? 600 : (window.innerWidth < 768 ? 260 : 460)} 
+            className="absolute z-0 opacity-50 pointer-events-none" 
+          />
+          
+          <div 
+            className={`relative rounded-full border-[#080808] vinyl-border flex items-center justify-center z-10 overflow-hidden ring-1 ring-white/5 transition-all duration-700 ${isPureMode ? 'w-0 h-0 opacity-0' : 'w-32 h-32 sm:w-44 sm:h-44 md:w-60 md:h-60 lg:w-72 lg:h-72 border-[8px] md:border-[15px]'}`}
+            style={{ 
+              boxShadow: `0 0 calc(30px + var(--beat-intensity) * 80px) hsla(var(--beat-hue), 80%, 50%, calc(0.15 + var(--beat-intensity) * 0.45))`,
+            }}
+          >
+            <div className={`w-full h-full p-6 md:p-12 ${isPlaying ? 'animate-spin-slow' : 'animate-spin-slow animate-spin-paused'}`}>
+              <div className="w-full h-full rounded-full bg-cover bg-center border-[2px] border-black/50 shadow-2xl relative overflow-hidden" style={{ backgroundImage: `url(${customCover || currentSong.coverUrl})` }}>
+                 <div className="absolute inset-0 bg-[radial-gradient(circle,_transparent_50%,_rgba(0,0,0,0.6)_100%)]"></div>
               </div>
             </div>
           </div>
+
+          {isPureMode && (
+            <div className="absolute inset-0 flex flex-col items-center justify-center z-20 px-6 sm:px-12 text-center space-y-6 sm:space-y-10 animate-in zoom-in duration-1000 max-w-full">
+               <h3 className="text-2xl sm:text-3xl md:text-5xl font-black italic tracking-tighter text-white drop-shadow-2xl line-clamp-4 break-words leading-[1.2]">
+                 “{EMOTIONAL_QUOTES[quoteIndex]?.content}”
+               </h3>
+               <div className="space-y-3 opacity-40">
+                  <div className="h-[1px] w-12 bg-white/30 mx-auto"></div>
+                  <p className="text-lg sm:text-xl font-bold tracking-[0.3em] uppercase truncate max-w-xs">{currentSong.name}</p>
+                  <p className="text-[10px] uppercase tracking-[0.6em] truncate max-w-xs">{currentSong.artist}</p>
+               </div>
+            </div>
+          )}
         </div>
 
-        {/* 播放控制 */}
-        <div className="w-full max-w-lg mt-10 md:mt-16 text-center z-10 space-y-8 px-6">
-          <div className="animate-in fade-in slide-in-from-bottom-4 duration-1000">
-            <h2 className="text-2xl md:text-5xl font-black text-white tracking-tighter truncate drop-shadow-2xl italic">{currentSong.name}</h2>
-            <p className="text-red-600 font-black uppercase tracking-[0.4em] text-[10px] md:text-xs mt-3 flex items-center justify-center space-x-2">
-              <span className="w-4 h-px bg-red-600/30"></span>
-              <span>{currentSong.artist}</span>
-              <span className="w-4 h-px bg-red-600/30"></span>
-            </p>
+        <div className={`w-full max-w-md text-center z-10 flex flex-col space-y-6 md:space-y-8 transition-all duration-500 ${isPureMode ? 'opacity-0 pointer-events-none translate-y-10' : 'opacity-100'}`}>
+          <div className="animate-in fade-in slide-in-from-bottom-3 duration-1000 px-4">
+            <h2 className="text-xl md:text-4xl font-black text-white tracking-tighter truncate italic" style={{ textShadow: '0 10px 30px rgba(0,0,0,0.8)' }}>{currentSong.name}</h2>
+            <p className="font-bold uppercase tracking-[0.6em] text-[8px] md:text-[10px] mt-2 opacity-60 truncate" style={{ color: `hsla(var(--beat-hue), 60%, 70%, 1)` }}>{currentSong.artist}</p>
           </div>
           
-          <div className="space-y-6">
-            <div className="flex items-center space-x-5">
-              <span className="text-[10px] text-zinc-600 font-mono w-12 text-right">{Math.floor(currentTime/60)}:{Math.floor(currentTime%60).toString().padStart(2,'0')}</span>
-              <div className="flex-1 h-1.5 bg-white/5 rounded-full relative group">
-                <input type="range" min="0" max={duration || 0} step="0.1" value={currentTime} onChange={(e)=> onSeek(parseFloat(e.target.value))} className="absolute inset-0 w-full h-full opacity-0 z-20 cursor-pointer" />
-                <div className="absolute left-0 top-0 h-full bg-red-600 shadow-[0_0_15px_rgba(194,12,12,0.6)] rounded-full transition-all duration-100" style={{ width: `${(currentTime / duration) * 100 || 0}%` }}></div>
-                <div className="absolute h-3 w-3 bg-white rounded-full -top-0.5 shadow-xl opacity-0 group-hover:opacity-100 transition-opacity" style={{ left: `calc(${(currentTime / duration) * 100 || 0}% - 6px)` }}></div>
+          <div className="px-6 sm:px-8 space-y-5">
+            <div className="flex items-center space-x-3 group/progress-container">
+              <span className="text-[8px] text-zinc-700 font-mono w-8 text-right shrink-0">{Math.floor(currentTime/60)}:{Math.floor(currentTime%60).toString().padStart(2,'0')}</span>
+              <div className="flex-1 h-1.5 bg-white/5 rounded-full relative min-w-0">
+                <input 
+                  type="range" min="0" max={duration || 0} step="0.1" 
+                  value={currentTime} 
+                  onChange={(e)=> onSeek(parseFloat(e.target.value))} 
+                  className="absolute inset-0 w-full h-full opacity-0 z-30 cursor-pointer" 
+                />
+                <div 
+                  className="absolute left-0 top-0 h-full rounded-full transition-all duration-75 z-20 pointer-events-none" 
+                  style={{ 
+                    width: `${(currentTime / duration) * 100 || 0}%`,
+                    backgroundColor: `hsla(var(--beat-hue), 70%, 50%, 1)`,
+                    boxShadow: `0 0 12px hsla(var(--beat-hue), 70%, 50%, 0.8)`
+                  }}
+                ></div>
               </div>
-              <span className="text-[10px] text-zinc-600 font-mono w-12">{Math.floor(duration/60)}:{Math.floor(duration%60).toString().padStart(2,'0')}</span>
+              <span className="text-[8px] text-zinc-700 font-mono w-8 text-left shrink-0">{Math.floor(duration/60)}:{Math.floor(duration%60).toString().padStart(2,'0')}</span>
             </div>
 
-            <div className="flex items-center justify-center space-x-6 md:space-x-12">
-              <button onClick={togglePlaybackMode} className="text-zinc-600 hover:text-white text-lg w-8 h-8 flex items-center justify-center transition-all relative">
-                <i className={`fa-solid ${getModeIcon()}`}></i>
-                {playbackMode === PlaybackMode.REPEAT_ONE && <span className="absolute text-[8px] font-black top-1/2 left-1/2 -translate-x-1/2 -translate-y-[45%] text-white pointer-events-none">1</span>}
+            <div className="flex items-center justify-center space-x-4 md:space-x-8">
+              <button onClick={() => onModeChange(playbackMode === PlaybackMode.SHUFFLE ? PlaybackMode.SEQUENCE : playbackMode === PlaybackMode.SEQUENCE ? PlaybackMode.REPEAT_ONE : PlaybackMode.SHUFFLE)} className="text-zinc-700 hover:text-white transition-all shrink-0">
+                <i className={`fa-solid ${getModeIcon()} text-[10px] md:text-xs`}></i>
               </button>
-              
-              <button onClick={handlePrev} className="text-zinc-500 hover:text-white text-3xl active:scale-75 transition-all"><i className="fa-solid fa-backward-step"></i></button>
-              
-              <button onClick={onTogglePlay} className="w-16 h-16 md:w-22 md:h-22 bg-white rounded-full flex items-center justify-center text-black shadow-[0_0_50px_rgba(255,255,255,0.1)] active:scale-90 hover:scale-105 transition-all">
-                <i className={`fa-solid ${isPlaying ? 'fa-pause' : 'fa-play ml-1.5'} text-3xl md:text-4xl`}></i>
+              <button onClick={() => onIndexChange((currentIndex - 1 + songs.length) % songs.length)} className="text-zinc-500 hover:text-white text-xl md:text-3xl active:scale-75 transition-all shrink-0"><i className="fa-solid fa-backward-step"></i></button>
+              <button onClick={onTogglePlay} className="w-14 h-14 md:w-20 md:h-20 bg-white rounded-full flex items-center justify-center text-black shadow-[0_20px_50px_rgba(255,255,255,0.1)] active:scale-90 transition-all shrink-0">
+                <i className={`fa-solid ${isPlaying ? 'fa-pause' : 'fa-play ml-1'} text-xl md:text-4xl`}></i>
               </button>
+              <button onClick={() => onIndexChange((currentIndex + 1) % songs.length)} className="text-zinc-500 hover:text-white text-xl md:text-3xl active:scale-75 transition-all shrink-0"><i className="fa-solid fa-forward-step"></i></button>
               
-              <button onClick={handleNext} className="text-zinc-500 hover:text-white text-3xl active:scale-75 transition-all"><i className="fa-solid fa-forward-step"></i></button>
-              
-              <button className="text-zinc-600 hover:text-white text-lg w-8 h-8 flex items-center justify-center transition-all opacity-40">
-                <i className="fa-solid fa-bars-staggered"></i>
+              {/* 音量控制 - 增强灵敏度版本 */}
+              <div className="flex items-center space-x-2 relative shrink-0">
+                <button 
+                  onClick={() => setShowVolume(!showVolume)} 
+                  className={`w-8 h-8 rounded-full flex items-center justify-center transition-all ${showVolume ? 'bg-white/10 text-white' : 'text-zinc-700 hover:text-white'}`}
+                >
+                  <i className={`fa-solid ${getVolumeIcon()} text-[10px] md:text-xs`}></i>
+                </button>
+                {showVolume && (
+                  <div className="absolute bottom-full mb-4 left-1/2 -translate-x-1/2 bg-black/80 backdrop-blur-xl border border-white/10 p-4 rounded-2xl shadow-2xl flex flex-col items-center space-y-3 z-50 animate-in zoom-in-95 duration-200">
+                    <div className="h-32 w-8 relative flex flex-col items-center">
+                       <input 
+                        type="range" min="0" max="1" step="0.01" 
+                        value={isMuted ? 0 : volume} 
+                        onChange={(e) => onVolumeChange(parseFloat(e.target.value))}
+                        className="w-32 h-1 bg-white/10 accent-red-600 cursor-pointer absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 -rotate-90 origin-center"
+                       />
+                    </div>
+                    <span className="text-[10px] font-mono font-black text-white">{Math.round(volume * 100)}</span>
+                  </div>
+                )}
+                {/* 隐藏静音按钮以便快速切换 */}
+                <button onClick={onToggleMute} className="hidden sm:flex text-zinc-800 hover:text-zinc-500 text-[8px] absolute -bottom-4 left-1/2 -translate-x-1/2 font-black uppercase tracking-tighter">Mute</button>
+              </div>
+
+              <button onClick={() => setShowFullQueue(true)} className={`w-8 h-8 rounded-full flex items-center justify-center transition-all shrink-0 ${showFullQueue ? 'bg-red-600 text-white shadow-lg' : 'text-zinc-700 hover:text-white'}`}>
+                <i className="fa-solid fa-list-ul text-[10px] md:text-xs"></i>
+              </button>
+
+              <button onClick={() => setShowToolbox(!showToolbox)} className={`w-8 h-8 rounded-full flex items-center justify-center transition-all shrink-0 ${showToolbox ? 'bg-red-600 text-white shadow-lg shadow-red-600/20' : 'text-zinc-700 hover:text-white'}`}>
+                <i className="fa-solid fa-wand-magic-sparkles text-[10px] md:text-xs"></i>
               </button>
             </div>
           </div>
         </div>
       </div>
 
-      {/* 侧边文案墙 */}
-      <div className="flex-1 bg-black/60 backdrop-blur-3xl border-l border-white/5 flex flex-col h-[38vh] md:h-auto animate-in slide-in-from-right duration-700">
-        <div className="p-8 md:p-10 pb-4 flex-1 overflow-hidden flex flex-col">
-           <div className="flex items-center justify-between mb-6 border-b border-white/5 pb-4">
-              <span className="text-[10px] font-black text-zinc-500 uppercase tracking-[0.3em]">子夜队列 ({songs.length})</span>
-              <div className="flex items-center space-x-2">
-                 <div className="w-1 h-1 rounded-full bg-red-600"></div>
-                 <span className="text-[8px] text-zinc-700 font-bold uppercase">Streaming Live</span>
-              </div>
+      <div className={`h-24 md:h-36 border-t border-white/5 bg-black/60 backdrop-blur-3xl flex items-stretch shrink-0 relative overflow-hidden transition-all duration-500 ${isPureMode ? 'translate-y-full opacity-0' : 'translate-y-0 opacity-100'}`}>
+        <div 
+          className="absolute top-0 left-0 right-0 h-[1px] opacity-40"
+          style={{ background: `linear-gradient(90deg, transparent, hsla(var(--beat-hue), 80%, 50%, 1), transparent)` }}
+        ></div>
+
+        <div className="flex-1 flex flex-col justify-center px-6 md:px-16 border-r border-white/5 min-w-0">
+           <span className="text-[7px] md:text-[8px] font-black uppercase tracking-[0.4em] mb-2 flex items-center space-x-2 transition-colors shrink-0" style={{ color: `hsla(var(--beat-hue), 80%, 50%, 1)` }}>
+             <i className="fa-solid fa-heart-crack text-[10px]"></i>
+             <span>网忆云 · 深夜共鸣映射</span>
+           </span>
+           <div key={quoteIndex} className="relative overflow-hidden animate-in fade-in slide-in-from-left-4 duration-1000">
+              <p className="text-[10px] md:text-[12px] text-zinc-400 italic leading-relaxed line-clamp-2 break-words">
+                “{EMOTIONAL_QUOTES[quoteIndex]?.content}”
+              </p>
            </div>
-           <div className="flex-1 overflow-y-auto space-y-3 custom-scrollbar pr-2">
-             {songs.map((song, idx) => (
-               <div key={song.id} onClick={() => onIndexChange(idx)} className={`flex items-center space-x-4 p-4 rounded-2xl transition-all cursor-pointer group ${idx === currentIndex ? 'bg-red-600/10 border border-red-600/20' : 'hover:bg-white/5 border border-transparent'}`}>
-                 <div className="w-10 h-10 rounded-xl overflow-hidden relative flex-shrink-0">
-                    <img src={song.coverUrl} className={`w-full h-full object-cover ${idx === currentIndex && isPlaying ? 'animate-pulse' : ''}`} />
-                    {idx === currentIndex && isPlaying && (
-                      <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
-                        <div className="flex items-end space-x-0.5 h-3">
-                          <div className="w-0.5 bg-red-600 animate-[bounce_0.6s_infinite]"></div>
-                          <div className="w-0.5 bg-red-600 animate-[bounce_0.8s_infinite]"></div>
-                          <div className="w-0.5 bg-red-600 animate-[bounce_0.5s_infinite]"></div>
-                        </div>
-                      </div>
-                    )}
-                 </div>
-                 <div className="truncate flex-1">
-                    <p className={`text-xs font-black truncate transition-colors ${idx === currentIndex ? 'text-red-500' : 'text-zinc-400 group-hover:text-white'}`}>{song.name}</p>
-                    <p className="text-[9px] opacity-40 truncate uppercase font-bold tracking-tight mt-1">{song.artist}</p>
+        </div>
+        
+        <div className="hidden lg:flex flex-[0.8] flex-col justify-center px-12 min-w-0 bg-white/[0.01]">
+           <div className="flex items-center justify-between mb-2">
+              <span className="text-[8px] font-black text-zinc-700 uppercase tracking-widest">即将触达</span>
+           </div>
+           <div className="flex space-x-3 overflow-hidden">
+             {nextUp.slice(0, 2).map(({ song, idx }) => (
+               <div key={song.id} onClick={() => onIndexChange(idx)} className="flex-shrink-0 w-44 bg-white/[0.02] border border-white/5 p-2 rounded-xl flex items-center space-x-3 cursor-pointer hover:bg-white/5 transition-all group overflow-hidden">
+                 <img src={song.coverUrl} className="w-8 h-8 rounded-lg object-cover grayscale opacity-30 group-hover:grayscale-0 group-hover:opacity-100 transition-all" />
+                 <div className="truncate flex-1 min-w-0">
+                    <p className="text-[10px] font-bold text-zinc-400 truncate">{song.name}</p>
+                    <p className="text-[7px] text-zinc-700 font-black uppercase tracking-tighter truncate">{song.artist}</p>
                  </div>
                </div>
              ))}
            </div>
         </div>
-
-        {/* 动态伤感文案区 */}
-        <div className="p-8 md:p-12 border-t border-white/5 bg-black/40 relative group overflow-hidden">
-          <div className="absolute -right-4 -top-4 opacity-5 pointer-events-none group-hover:opacity-10 transition-opacity">
-            <i className="fa-solid fa-quote-right text-8xl text-red-600"></i>
-          </div>
-          <div className="flex items-center justify-between mb-6">
-             <span className="text-[10px] font-black text-red-600 uppercase tracking-[0.4em] italic">灵魂共鸣</span>
-             <div className="flex space-x-1">
-               <div className="w-1.5 h-1.5 rounded-full bg-red-600/20"></div>
-               <div className="w-1.5 h-1.5 rounded-full bg-red-600 animate-pulse"></div>
-             </div>
-          </div>
-          <div className="min-h-[140px] flex items-center relative">
-             <p className={`text-sm md:text-lg text-zinc-300 italic leading-relaxed font-light tracking-wide transition-all duration-1000 ${quoteVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`}>
-               “{EMOTIONAL_QUOTES[quoteIndex]?.content}”
-             </p>
-          </div>
-          <div className="mt-6 flex items-center space-x-4 opacity-30">
-             <span className="text-[8px] font-black uppercase tracking-widest text-zinc-500">Nocturne Echo · {new Date().getFullYear()}</span>
-          </div>
-        </div>
       </div>
+
+      {showToolbox && (
+        <div className="absolute top-1/2 right-4 sm:right-10 -translate-y-1/2 w-64 bg-[#080808] border border-white/10 rounded-3xl p-6 shadow-2xl z-[160] animate-in slide-in-from-right-10 duration-500 max-h-[80vh] overflow-y-auto custom-scrollbar">
+           <div className="flex items-center justify-between mb-6">
+              <span className="text-[10px] font-black uppercase tracking-widest text-white italic">深夜工具箱</span>
+              <button onClick={() => setShowToolbox(false)} className="text-zinc-600 hover:text-white"><i className="fa-solid fa-xmark"></i></button>
+           </div>
+           
+           <div className="space-y-6">
+              <div className="space-y-4">
+                 <div className="flex items-center justify-between">
+                    <span className="text-[9px] font-bold text-zinc-500 uppercase tracking-widest">窗外雨声</span>
+                    <span className="text-[8px] font-mono text-zinc-700">{Math.round(ambientRain * 100)}%</span>
+                 </div>
+                 <div className="h-4 relative flex items-center">
+                    <input type="range" min="0" max="1" step="0.01" value={ambientRain} onChange={e => onAmbientRainChange(parseFloat(e.target.value))} className="w-full h-1.5 bg-white/5 accent-blue-600 cursor-pointer" />
+                 </div>
+                 
+                 <div className="flex items-center justify-between">
+                    <span className="text-[9px] font-bold text-zinc-500 uppercase tracking-widest">唱片底噪</span>
+                    <span className="text-[8px] font-mono text-zinc-700">{Math.round(ambientStatic * 100)}%</span>
+                 </div>
+                 <div className="h-4 relative flex items-center">
+                    <input type="range" min="0" max="1" step="0.01" value={ambientStatic} onChange={e => onAmbientStaticChange(parseFloat(e.target.value))} className="w-full h-1.5 bg-white/5 accent-zinc-500 cursor-pointer" />
+                 </div>
+              </div>
+
+              <div className="h-[1px] bg-white/5"></div>
+
+              <div className="space-y-3">
+                 <span className="text-[9px] font-bold text-zinc-500 uppercase tracking-widest">睡眠定时</span>
+                 <div className="grid grid-cols-3 gap-2">
+                    {[15, 30, 60].map(m => (
+                      <button 
+                        key={m} 
+                        onClick={() => onSleepTimerChange(m * 60)}
+                        className={`py-2 rounded-xl text-[9px] font-black transition-all ${sleepTimer === m * 60 ? 'bg-red-600 text-white' : 'bg-white/5 text-zinc-600 hover:text-white'}`}
+                      >
+                        {m}m
+                      </button>
+                    ))}
+                 </div>
+                 {sleepTimer !== null && (
+                   <button onClick={() => onSleepTimerChange(null)} className="w-full py-2 text-[8px] font-black uppercase text-red-500/50 hover:text-red-500 transition-all">取消定时</button>
+                 )}
+              </div>
+
+              <div className="h-[1px] bg-white/5"></div>
+
+              <button 
+                onClick={() => { setIsPureMode(true); setShowToolbox(false); }}
+                className="w-full py-4 bg-white/5 hover:bg-white/10 rounded-2xl flex items-center justify-center space-x-3 transition-all border border-white/5 group"
+              >
+                <i className="fa-solid fa-eye-slash text-zinc-600 group-hover:text-red-500"></i>
+                <span className="text-[10px] font-black uppercase tracking-widest text-zinc-400 group-hover:text-white">进入冥想模式</span>
+              </button>
+           </div>
+        </div>
+      )}
+
+      {showFullQueue && (
+        <div className="fixed inset-0 z-[200] flex">
+           <div className="flex-1 bg-black/60 backdrop-blur-md animate-in fade-in duration-700" onClick={() => setShowFullQueue(false)}></div>
+           <div className="w-full md:w-[420px] bg-[#030303] border-l border-white/10 flex flex-col shadow-2xl animate-in slide-in-from-right duration-500">
+              <div className="p-8 border-b border-white/5 flex items-center justify-between bg-black/40">
+                 <div className="min-w-0">
+                    <h3 className="text-2xl font-black italic text-white tracking-tighter truncate">记忆载体</h3>
+                    <p className="text-[8px] text-zinc-700 font-bold uppercase tracking-[0.4em] mt-1 truncate">Memory Repository</p>
+                 </div>
+                 <button onClick={() => setShowFullQueue(false)} className="w-10 h-10 rounded-full flex items-center justify-center text-zinc-500 hover:text-white hover:bg-white/5 transition-all shrink-0">
+                    <i className="fa-solid fa-xmark"></i>
+                 </button>
+              </div>
+              
+              <div className="flex-1 overflow-y-auto custom-scrollbar p-4 space-y-1.5">
+                {songs.map((song, idx) => (
+                  <div 
+                    key={song.id} 
+                    onClick={() => { onIndexChange(idx); setShowFullQueue(false); }}
+                    className={`flex items-center space-x-4 p-4 rounded-2xl cursor-pointer transition-all border ${idx === currentIndex ? 'bg-white/[0.04] border-white/10' : 'hover:bg-white/[0.02] border-transparent'}`}
+                  >
+                    <div className="w-12 h-12 rounded-xl overflow-hidden bg-zinc-950 flex-shrink-0 relative border border-white/5">
+                      <img src={song.coverUrl} className={`w-full h-full object-cover transition-all duration-1000 ${idx === currentIndex ? 'opacity-40 scale-110' : 'opacity-60 grayscale'}`} />
+                      {idx === currentIndex && isPlaying && (
+                         <div className="absolute inset-0 flex items-center justify-center">
+                            <div className="flex items-end space-x-1 h-3">
+                               <div className="w-0.5 animate-[bounce_0.6s_infinite]" style={{ backgroundColor: `hsla(var(--beat-hue), 80%, 50%, 1)` }}></div>
+                               <div className="w-0.5 animate-[bounce_0.8s_infinite] delay-100" style={{ backgroundColor: `hsla(var(--beat-hue), 80%, 50%, 1)` }}></div>
+                               <div className="w-0.5 animate-[bounce_0.5s_infinite] delay-200" style={{ backgroundColor: `hsla(var(--beat-hue), 80%, 50%, 1)` }}></div>
+                            </div>
+                         </div>
+                      )}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className={`text-[13px] font-black truncate ${idx === currentIndex ? 'text-white' : 'text-zinc-500'}`} style={idx === currentIndex ? { color: `hsla(var(--beat-hue), 80%, 60%, 1)` } : {}}>{song.name}</p>
+                      <p className="text-[8px] text-zinc-700 font-bold uppercase tracking-widest mt-1 truncate">{song.artist}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+           </div>
+        </div>
+      )}
     </div>
   );
 };

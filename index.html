@@ -4,8 +4,8 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>我的云端音乐 - 伤感·文案·DJ</title>
-  <script src="https://cdn.tailwindcss.com"></script>
+  <title>网忆云 - 深夜第一伤感DJ频道</title>
+  <script src="https://cdn.tailwindcss.com?plugins=line-clamp"></script>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800;900&display=swap');
@@ -16,6 +16,29 @@
     
     * {
       font-family: 'Inter', -apple-system, "Helvetica Neue", Arial, sans-serif;
+      box-sizing: border-box;
+    }
+
+    body {
+      background-color: #020202;
+      color: #fff;
+      margin: 0;
+      padding: 0;
+      overflow: hidden;
+    }
+
+    /* 噪点覆盖层 */
+    body::after {
+      content: "";
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      background: url('https://www.transparenttextures.com/patterns/stardust.png');
+      opacity: 0.05;
+      z-index: 9999;
     }
 
     @keyframes rotate {
@@ -41,34 +64,57 @@
       );
     }
 
-    ::-webkit-scrollbar {
+    .custom-scrollbar::-webkit-scrollbar {
       width: 4px;
     }
-    ::-webkit-scrollbar-track {
+    .custom-scrollbar::-webkit-scrollbar-track {
       background: transparent;
     }
-    ::-webkit-scrollbar-thumb {
+    .custom-scrollbar::-webkit-scrollbar-thumb {
       background: rgba(255, 255, 255, 0.05);
       border-radius: 10px;
     }
-    
-    body {
-      background-color: #020202;
-      color: #fff;
+
+    /* 全局优化 Range 输入框：增大点击灵敏度 */
+    input[type="range"] {
+      -webkit-appearance: none;
+      background: transparent;
+      cursor: pointer;
     }
-    
-    .heart-pop {
-      animation: heartPop 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+
+    input[type="range"]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      height: 16px;
+      width: 16px;
+      border-radius: 50%;
+      background: #ffffff;
+      box-shadow: 0 0 10px rgba(0,0,0,0.5);
+      margin-top: -6px; /* 居中对齐轨道 */
     }
-    @keyframes heartPop {
-      0% { transform: scale(1); }
-      50% { transform: scale(1.4); }
-      100% { transform: scale(1); }
+
+    input[type="range"]::-moz-range-thumb {
+      height: 16px;
+      width: 16px;
+      border-radius: 50%;
+      background: #ffffff;
+      border: none;
+      box-shadow: 0 0 10px rgba(0,0,0,0.5);
     }
-    
-    .sidebar-active {
-      background: linear-gradient(90deg, rgba(194, 12, 12, 0.1) 0%, rgba(194, 12, 12, 0) 100%);
-      border-right: 2px solid var(--netease-red);
+
+    /* 增大轨道的可点击高度，虽然视觉上它是细的 */
+    input[type="range"]::-webkit-slider-runnable-track {
+      width: 100%;
+      height: 4px;
+      cursor: pointer;
+      border-radius: 2px;
+    }
+
+    /* 针对音量条等特定样式的微调 */
+    .volume-slider input[type="range"]::-webkit-slider-thumb {
+      background: #C20C0C;
+      height: 12px;
+      width: 12px;
+      margin-top: -4px;
     }
   </style>
 <script type="importmap">
@@ -84,7 +130,7 @@
 }
 </script>
 </head>
-<body class="bg-[#020202] text-white m-0 p-0 overflow-hidden select-none">
+<body class="select-none">
   <div id="root"></div>
 </body>
 </html>
