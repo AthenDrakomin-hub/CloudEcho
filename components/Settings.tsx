@@ -5,7 +5,6 @@ import { S3_CONFIG } from '../constants';
 const Settings: React.FC = () => {
   const [showNoise, setShowNoise] = useState(true);
   const [glowIntensity, setGlowIntensity] = useState(0.8);
-  const [autoTranslate, setAutoTranslate] = useState(true);
 
   const clearCache = () => {
     if (confirm('确定要清除所有本地歌单和设置吗？这不会影响云端文件。')) {
@@ -85,36 +84,6 @@ const Settings: React.FC = () => {
                     onChange={e => setGlowIntensity(parseFloat(e.target.value))}
                     className="w-full h-1 bg-white/10 accent-red-600 rounded-full appearance-none cursor-pointer"
                   />
-               </div>
-            </div>
-          </section>
-
-          {/* 智能配置 */}
-          <section className="bg-white/[0.02] border border-white/5 rounded-[2.5rem] p-8 space-y-6">
-            <div className="flex items-center space-x-3 text-red-500">
-               <i className="fa-solid fa-brain text-sm"></i>
-               <h3 className="text-xs font-black uppercase tracking-widest">智能引擎 (AI & Data)</h3>
-            </div>
-            <div className="space-y-6">
-               <div className="flex items-center justify-between">
-                  <div className="space-y-1">
-                     <p className="text-sm font-bold text-white">自动拼音翻译</p>
-                     <p className="text-[10px] text-zinc-600">使用 Gemini 对非中文标题进行语义映射</p>
-                  </div>
-                  <button 
-                    onClick={() => setAutoTranslate(!autoTranslate)}
-                    className={`w-12 h-6 rounded-full transition-all relative ${autoTranslate ? 'bg-red-600' : 'bg-zinc-800'}`}
-                  >
-                    <div className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-all ${autoTranslate ? 'left-7' : 'left-1'}`}></div>
-                  </button>
-               </div>
-               
-               <div className="p-4 bg-red-600/5 border border-red-600/10 rounded-2xl flex items-center space-x-4">
-                  <i className="fa-solid fa-microchip text-red-600 text-lg"></i>
-                  <div className="space-y-0.5">
-                     <p className="text-[10px] font-black text-white uppercase tracking-widest">Active Model</p>
-                     <p className="text-[10px] text-zinc-500 font-bold">gemini-3-flash-preview</p>
-                  </div>
                </div>
             </div>
           </section>

@@ -47,6 +47,7 @@ const MusicPlayer: React.FC<MusicPlayerProps> = ({
   const animationRef = useRef<number>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
   const analyserRef = useRef<AnalyserNode | null>(null);
+  const volumeTimerRef = useRef<number | null>(null);
 
   const currentSong = songs[currentIndex];
 
@@ -65,6 +66,17 @@ const MusicPlayer: React.FC<MusicPlayerProps> = ({
     const randomCover = DEFAULT_COVERS[Math.floor(Math.random() * DEFAULT_COVERS.length)];
     setCustomCover(randomCover);
   }, [currentIndex]);
+
+  const handleVolumeEnter = () => {
+    if (volumeTimerRef.current) window.clearTimeout(volumeTimerRef.current);
+    setShowVolume(true);
+  };
+
+  const handleVolumeLeave = () => {
+    volumeTimerRef.current = window.setTimeout(() => {
+      setShowVolume(false);
+    }, 1200); // 增加延时，防止误触关闭
+  };
 
   const getModeIcon = () => {
     switch (playbackMode) {
@@ -243,7 +255,7 @@ const MusicPlayer: React.FC<MusicPlayerProps> = ({
           <div className="px-6 sm:px-8 space-y-5">
             <div className="flex items-center space-x-3 group/progress-container">
               <span className="text-[8px] text-zinc-700 font-mono w-8 text-right shrink-0">{Math.floor(currentTime/60)}:{Math.floor(currentTime%60).toString().padStart(2,'0')}</span>
-              <div className="flex-1 h-1.5 bg-white/5 rounded-full relative min-w-0">
+              <div className="flex-1 h-2 bg-white/5 rounded-full relative min-w-0">
                 <input 
                   type="range" min="0" max={duration || 0} step="0.1" 
                   value={currentTime} 
@@ -272,37 +284,40 @@ const MusicPlayer: React.FC<MusicPlayerProps> = ({
               </button>
               <button onClick={() => onIndexChange((currentIndex + 1) % songs.length)} className="text-zinc-500 hover:text-white text-xl md:text-3xl active:scale-75 transition-all shrink-0"><i className="fa-solid fa-forward-step"></i></button>
               
-              {/* 音量控制 - 增强灵敏度版本 */}
-              <div className="flex items-center space-x-2 relative shrink-0">
+              {/* 音量控制 - 极高灵敏度版本 */}
+              <div 
+                className="flex items-center space-x-2 relative shrink-0"
+                onMouseEnter={handleVolumeEnter}
+                onMouseLeave={handleVolumeLeave}
+              >
                 <button 
                   onClick={() => setShowVolume(!showVolume)} 
-                  className={`w-8 h-8 rounded-full flex items-center justify-center transition-all ${showVolume ? 'bg-white/10 text-white' : 'text-zinc-700 hover:text-white'}`}
+                  className={`w-10 h-10 rounded-full flex items-center justify-center transition-all ${showVolume ? 'bg-white/10 text-white shadow-lg' : 'text-zinc-700 hover:text-white'}`}
                 >
-                  <i className={`fa-solid ${getVolumeIcon()} text-[10px] md:text-xs`}></i>
+                  <i className={`fa-solid ${getVolumeIcon()} text-[12px] md:text-sm`}></i>
                 </button>
                 {showVolume && (
-                  <div className="absolute bottom-full mb-4 left-1/2 -translate-x-1/2 bg-black/80 backdrop-blur-xl border border-white/10 p-4 rounded-2xl shadow-2xl flex flex-col items-center space-y-3 z-50 animate-in zoom-in-95 duration-200">
-                    <div className="h-32 w-8 relative flex flex-col items-center">
+                  <div className="absolute bottom-full mb-4 left-1/2 -translate-x-1/2 bg-[#0a0a0a] border border-white/10 p-5 rounded-3xl shadow-[0_30px_60px_-15px_rgba(0,0,0,0.8)] flex flex-col items-center space-y-4 z-50 animate-in zoom-in-95 duration-200">
+                    <div className="h-40 w-12 relative flex flex-col items-center group/slider">
                        <input 
                         type="range" min="0" max="1" step="0.01" 
                         value={isMuted ? 0 : volume} 
                         onChange={(e) => onVolumeChange(parseFloat(e.target.value))}
-                        className="w-32 h-1 bg-white/10 accent-red-600 cursor-pointer absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 -rotate-90 origin-center"
+                        className="w-40 h-2 bg-white/5 accent-red-600 cursor-pointer absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 -rotate-90 origin-center"
                        />
                     </div>
-                    <span className="text-[10px] font-mono font-black text-white">{Math.round(volume * 100)}</span>
+                    <span className="text-[11px] font-mono font-black text-white bg-white/5 px-3 py-1 rounded-full">{Math.round(volume * 100)}%</span>
                   </div>
                 )}
-                {/* 隐藏静音按钮以便快速切换 */}
-                <button onClick={onToggleMute} className="hidden sm:flex text-zinc-800 hover:text-zinc-500 text-[8px] absolute -bottom-4 left-1/2 -translate-x-1/2 font-black uppercase tracking-tighter">Mute</button>
+                <button onClick={onToggleMute} className="hidden lg:flex text-zinc-800 hover:text-zinc-600 text-[8px] absolute -bottom-5 left-1/2 -translate-x-1/2 font-black uppercase tracking-tighter transition-colors">Quick Mute</button>
               </div>
 
-              <button onClick={() => setShowFullQueue(true)} className={`w-8 h-8 rounded-full flex items-center justify-center transition-all shrink-0 ${showFullQueue ? 'bg-red-600 text-white shadow-lg' : 'text-zinc-700 hover:text-white'}`}>
-                <i className="fa-solid fa-list-ul text-[10px] md:text-xs"></i>
+              <button onClick={() => setShowFullQueue(true)} className={`w-10 h-10 rounded-full flex items-center justify-center transition-all shrink-0 ${showFullQueue ? 'bg-red-600 text-white shadow-lg' : 'text-zinc-700 hover:text-white'}`}>
+                <i className="fa-solid fa-list-ul text-[12px] md:text-sm"></i>
               </button>
 
-              <button onClick={() => setShowToolbox(!showToolbox)} className={`w-8 h-8 rounded-full flex items-center justify-center transition-all shrink-0 ${showToolbox ? 'bg-red-600 text-white shadow-lg shadow-red-600/20' : 'text-zinc-700 hover:text-white'}`}>
-                <i className="fa-solid fa-wand-magic-sparkles text-[10px] md:text-xs"></i>
+              <button onClick={() => setShowToolbox(!showToolbox)} className={`w-10 h-10 rounded-full flex items-center justify-center transition-all shrink-0 ${showToolbox ? 'bg-red-600 text-white shadow-lg shadow-red-600/20' : 'text-zinc-700 hover:text-white'}`}>
+                <i className="fa-solid fa-wand-magic-sparkles text-[12px] md:text-sm"></i>
               </button>
             </div>
           </div>

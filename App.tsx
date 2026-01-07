@@ -17,6 +17,7 @@ const App: React.FC = () => {
   const [playlists, setPlaylists] = useState<Playlist[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [isSharedMode, setIsSharedMode] = useState(false);
   const [selectedSong, setSelectedSong] = useState<Song | null>(null);
   const [selectedVideo, setSelectedVideo] = useState<Video | null>(null);
@@ -32,7 +33,6 @@ const App: React.FC = () => {
   const [ambientStatic, setAmbientStatic] = useState(0); 
   const [sleepTimer, setSleepTimer] = useState<number | null>(null);
 
-  // 缓存后的真实 URL
   const [activeAudioUrl, setActiveAudioUrl] = useState<string>('');
 
   const audioRef = useRef<HTMLAudioElement>(null);
@@ -62,11 +62,13 @@ const App: React.FC = () => {
     loadSongs();
   }, []);
 
-  // 核心：切歌时处理缓存逻辑
   useEffect(() => {
     if (currentSong) {
       getCachedMediaUrl(currentSong.id, currentSong.url).then(url => {
         setActiveAudioUrl(url);
+      }).catch(err => {
+        console.error("Audio cache failed:", err);
+        setActiveAudioUrl(currentSong.url);
       });
     }
   }, [currentSong]);
@@ -120,7 +122,7 @@ const App: React.FC = () => {
       }
     }
     isTransitioningRef.current = false;
-  }, [activeAudioUrl]); // 改为依赖 activeAudioUrl 确保地址转换后才尝试播放
+  }, [activeAudioUrl]);
 
   const handleTogglePlay = useCallback(async () => {
     if (!audioRef.current) return;
@@ -176,6 +178,7 @@ const App: React.FC = () => {
 
   const loadSongs = async () => {
     setIsLoading(true);
+    setLoadError(null);
     try {
       const fetchedSongs = await fetchSongs();
       setSongs(fetchedSongs);
@@ -186,6 +189,7 @@ const App: React.FC = () => {
       }
     } catch (e) {
       console.error("加载云端资源失败", e);
+      setLoadError("无法从云端获取曲库。请检查网络或配置。");
     }
     setIsLoading(false);
   };
@@ -301,6 +305,12 @@ const App: React.FC = () => {
           <div className="flex-1 flex flex-col items-center justify-center space-y-4">
             <div className="w-12 h-12 border-4 border-red-600/20 border-t-red-600 rounded-full animate-spin"></div>
             <p className="text-[10px] font-black uppercase tracking-[0.5em] text-zinc-700">Connecting to Repository...</p>
+          </div>
+        ) : loadError ? (
+          <div className="flex-1 flex flex-col items-center justify-center space-y-6 p-10 text-center">
+            <i className="fa-solid fa-triangle-exclamation text-red-600 text-4xl animate-bounce"></i>
+            <p className="text-sm font-bold text-zinc-400">{loadError}</p>
+            <button onClick={loadSongs} className="px-8 py-3 bg-white/5 border border-white/10 rounded-xl text-xs font-black uppercase tracking-widest hover:bg-white/10">重试加载</button>
           </div>
         ) : (
           <>

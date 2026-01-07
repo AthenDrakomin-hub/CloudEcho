@@ -4,7 +4,6 @@ import { Song, Playlist } from '../types';
 import { deleteSong, uploadSong, renameSong, saveVirtualName } from '../services/s3Service';
 import { S3_CONFIG } from '../constants';
 import { localTranslate } from '../services/translationService';
-import { translatePinyinToChinese } from '../services/aiService';
 
 interface MusicManagerProps {
   songs: Song[];
@@ -20,7 +19,6 @@ const MusicManager: React.FC<MusicManagerProps> = ({ songs, playlists, onUpdateP
   const [searchQuery, setSearchQuery] = useState('');
   const [activeTab, setActiveTab] = useState<'library' | 'playlists'>('library');
   const [isProcessing, setIsProcessing] = useState<string | null>(null);
-  const [isBatchTranslating, setIsBatchTranslating] = useState(false);
 
   const handleFileUpload = async (files: FileList | null) => {
     if (!files || files.length === 0) return;
@@ -53,40 +51,6 @@ const MusicManager: React.FC<MusicManagerProps> = ({ songs, playlists, onUpdateP
     }
   };
 
-  // 物理重命名：真正修改 S3 文件名
-  const handlePhysicalRename = async (e: React.MouseEvent, song: Song, newName: string) => {
-    e.stopPropagation();
-    setIsProcessing(song.id);
-    try {
-      const success = await renameSong(song.url, song.artist, newName);
-      if (success) onRefresh();
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setIsProcessing(null);
-    }
-  };
-
-  const handleBatchAiTranslate = async () => {
-    if (isBatchTranslating) return;
-    setIsBatchTranslating(true);
-    const pinyinSongs = songs.filter(s => isPinyin(s.name));
-    
-    for (const song of pinyinSongs) {
-      try {
-        const chinese = await translatePinyinToChinese(song.name);
-        if (chinese && chinese !== song.name) {
-          await saveVirtualName(song.id, chinese);
-        }
-      } catch (e) {
-        console.error("AI 批量翻译失败:", e);
-      }
-    }
-    
-    setIsBatchTranslating(false);
-    onRefresh();
-  };
-
   const filteredSongs = songs.filter(s => 
     s.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
     s.artist.toLowerCase().includes(searchQuery.toLowerCase())
@@ -110,16 +74,6 @@ const MusicManager: React.FC<MusicManagerProps> = ({ songs, playlists, onUpdateP
             <p className="text-[10px] text-zinc-600 uppercase tracking-widest font-bold">
               {activeTab === 'library' ? 'Cloud Music Repository' : 'Custom Collections'}
             </p>
-            {activeTab === 'library' && (
-              <button 
-                onClick={handleBatchAiTranslate}
-                disabled={isBatchTranslating}
-                className="text-[9px] text-red-600/60 hover:text-red-500 font-black uppercase tracking-widest flex items-center space-x-1 ml-4 transition-all"
-              >
-                <i className={`fa-solid ${isBatchTranslating ? 'fa-spinner animate-spin' : 'fa-wand-sparkles'}`}></i>
-                <span>{isBatchTranslating ? '正在智能汉化...' : '一键 AI 汉化'}</span>
-              </button>
-            )}
           </div>
         </div>
         

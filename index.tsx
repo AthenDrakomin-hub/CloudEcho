@@ -3,14 +3,26 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App';
 
-const rootElement = document.getElementById('root');
-if (!rootElement) {
-  throw new Error("Could not find root element to mount to");
-}
+console.log('[App] 启动初始化程序...');
 
-const root = ReactDOM.createRoot(rootElement);
-root.render(
-  <React.StrictMode>
-    <App />
-  </React.StrictMode>
-);
+const rootElement = document.getElementById('root');
+
+if (!rootElement) {
+  console.error("[App] 找不到挂载点 #root");
+  const errorDiv = document.createElement('div');
+  errorDiv.style.cssText = 'position:fixed;top:0;left:0;width:100%;padding:20px;background:red;color:white;z-index:10000';
+  errorDiv.innerText = 'Fatal Error: Missing #root element in DOM.';
+  document.body.appendChild(errorDiv);
+} else {
+  try {
+    const root = ReactDOM.createRoot(rootElement);
+    root.render(
+      <React.StrictMode>
+        <App />
+      </React.StrictMode>
+    );
+    console.log('[App] React 挂载完成');
+  } catch (err) {
+    console.error('[App] 挂载时发生崩溃:', err);
+  }
+}

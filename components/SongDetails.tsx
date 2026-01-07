@@ -3,7 +3,6 @@ import React, { useState } from 'react';
 import { Song } from '../types';
 import { renameSong, saveVirtualName } from '../services/s3Service';
 import { localTranslate } from '../services/translationService';
-import { translatePinyinToChinese } from '../services/aiService';
 
 interface SongDetailsProps {
   song: Song;
@@ -19,7 +18,6 @@ const SongDetails: React.FC<SongDetailsProps> = ({ song, onBack, onUpdate }) => 
   const [tempArtist, setTempArtist] = useState(song.artist);
   const [tempTitle, setTempTitle] = useState(song.name);
   const [isSaving, setIsSaving] = useState(false);
-  const [isAiTranslating, setIsAiTranslating] = useState(false);
 
   const handleSaveLyrics = () => {
     onUpdate({ ...song, lyrics: editedLyrics });
@@ -29,17 +27,6 @@ const SongDetails: React.FC<SongDetailsProps> = ({ song, onBack, onUpdate }) => 
   const handleQuickTranslate = () => {
     setTempTitle(localTranslate(tempTitle));
     setTempArtist(localTranslate(tempArtist));
-  };
-
-  const handleAiTranslate = async () => {
-    setIsAiTranslating(true);
-    try {
-      const translated = await translatePinyinToChinese(tempTitle);
-      setTempTitle(translated);
-    } catch (e) {
-      console.error(e);
-    }
-    setIsAiTranslating(false);
   };
 
   const handleSaveMetadata = async (mode: 'virtual' | 'physical') => {
@@ -117,9 +104,6 @@ const SongDetails: React.FC<SongDetailsProps> = ({ song, onBack, onUpdate }) => 
                     <div className="flex space-x-2">
                       <button onClick={handleQuickTranslate} title="快速词典翻译" className="h-12 w-12 bg-white/5 border border-white/10 rounded-xl flex items-center justify-center text-zinc-400 hover:text-white transition-all shrink-0">
                         <i className="fa-solid fa-language"></i>
-                      </button>
-                      <button onClick={handleAiTranslate} disabled={isAiTranslating} title="AI 智能汉化" className="h-12 w-12 bg-red-600/10 border border-red-600/20 rounded-xl flex items-center justify-center text-red-500 hover:bg-red-600 hover:text-white transition-all shrink-0">
-                        <i className={`fa-solid ${isAiTranslating ? 'fa-spinner animate-spin' : 'fa-wand-sparkles'}`}></i>
                       </button>
                     </div>
                   </div>
