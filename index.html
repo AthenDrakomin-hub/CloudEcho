@@ -5,7 +5,8 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>网忆云 - 深夜第一伤感DJ频道</title>
-  <script src="https://cdn.tailwindcss.com?plugins=line-clamp"></script>
+  <!-- 移除已弃用的 plugins=line-clamp 参数以消除警告 -->
+  <script src="https://cdn.tailwindcss.com"></script>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800;900&display=swap');
@@ -34,6 +35,31 @@
       width: 100vw;
       height: 100vh;
       display: flex;
+    }
+
+    /* 初始加载动画 */
+    .initial-loader {
+      position: fixed;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      background: #020202;
+      z-index: 5;
+    }
+
+    .loader-spin {
+      width: 40px;
+      height: 40px;
+      border: 3px solid rgba(255,255,255,0.05);
+      border-top-color: #C20C0C;
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
     }
 
     /* 噪点覆盖层 */
@@ -84,7 +110,6 @@
       border-radius: 10px;
     }
 
-    /* 全局优化 Range 输入框：增大点击灵敏度 */
     input[type="range"] {
       -webkit-appearance: none;
       background: transparent;
@@ -101,30 +126,13 @@
       margin-top: -6px;
     }
 
-    input[type="range"]::-moz-range-thumb {
-      height: 16px;
-      width: 16px;
-      border-radius: 50%;
-      background: #ffffff;
-      border: none;
-      box-shadow: 0 0 10px rgba(0,0,0,0.5);
-    }
-
     input[type="range"]::-webkit-slider-runnable-track {
       width: 100%;
-      height: 6px; /* 增加感应厚度 */
+      height: 6px;
       cursor: pointer;
       border-radius: 3px;
     }
 
-    .volume-slider input[type="range"]::-webkit-slider-thumb {
-      background: #C20C0C;
-      height: 14px;
-      width: 14px;
-      margin-top: -4px;
-    }
-
-    /* 紧急错误覆盖层 */
     #error-display {
       position: fixed;
       top: 0;
@@ -139,12 +147,11 @@
     }
   </style>
   <script>
-    // 捕获部署后的运行时错误，防止静默黑屏
     window.onerror = function(msg, url, lineNo, columnNo, error) {
       var display = document.getElementById('error-display');
       if (display) {
         display.style.display = 'block';
-        display.innerText = '运行时异常 (Runtime Error): ' + msg + '\nLocation: ' + url + ':' + lineNo;
+        display.innerText = '运行时异常: ' + msg + '\n位置: ' + url + ':' + lineNo;
       }
       return false;
     };
@@ -160,9 +167,17 @@
   }
 }
 </script>
+<!-- 必须添加以下脚本标签来启动应用 -->
+<script type="module" src="index.tsx"></script>
 </head>
 <body class="select-none">
   <div id="error-display"></div>
-  <div id="root"></div>
+  <div id="root">
+    <!-- 初始加载状态，防止黑屏感 -->
+    <div class="initial-loader">
+      <div class="loader-spin"></div>
+      <p style="margin-top: 20px; font-size: 10px; font-weight: 900; letter-spacing: 0.4em; color: #333; text-transform: uppercase;">Initializing Nocturne Echo...</p>
+    </div>
+  </div>
 </body>
 </html>
