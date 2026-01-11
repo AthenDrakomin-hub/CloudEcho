@@ -1,7 +1,7 @@
 
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { Song, PlaybackMode } from '../types';
-import { EMOTIONAL_QUOTES } from '../constants';
+import { EMOTIONAL_QUOTES, BRAND_COLORS } from '../constants';
 import { generateSoulQuote } from '../services/aiService';
 
 interface MusicPlayerProps {
@@ -32,6 +32,7 @@ const MusicPlayer: React.FC<MusicPlayerProps> = ({
   const [volume, setVolume] = useState(0.8);
   const [isFlipped, setIsFlipped] = useState(false); 
   const [showPlaylist, setShowPlaylist] = useState(false);
+  const [showShareModal, setShowShareModal] = useState(false);
   const [playlistPage, setPlaylistPage] = useState(0);
   const [isSoulLoading, setIsSoulLoading] = useState(false);
   const PAGE_SIZE = 6;
@@ -53,7 +54,7 @@ const MusicPlayer: React.FC<MusicPlayerProps> = ({
       setActiveQuote(EMOTIONAL_QUOTES[randomIdx].content);
     } finally {
       setIsSoulLoading(false);
-      setQuoteKey(prev => prev + 1);
+      setQuoteKey(prev => prev.filter(Boolean).length ? prev + 1 : 1);
     }
   };
 
@@ -106,234 +107,249 @@ const MusicPlayer: React.FC<MusicPlayerProps> = ({
   return (
     <div className="h-full flex flex-col relative overflow-hidden select-none bg-transparent text-white">
       
-      {/* 顶部情感投射：网易云评论墙风格 */}
-      <header className="h-[30%] flex flex-col items-center justify-center z-[60] px-10 md:px-20">
-         <div key={quoteKey} onClick={handleMagicSpark} className={`animate-[fadeIn_1.5s] text-center max-w-4xl cursor-pointer group transition-all duration-1000 ${isSoulLoading ? 'opacity-30 scale-95 blur-sm' : 'opacity-100 scale-100'}`}>
-            <div className="flex items-center justify-center space-x-6 mb-6 opacity-40 group-hover:opacity-100 transition-opacity">
-               <span className="h-[1px] w-16 bg-gradient-to-r from-transparent to-indigo-500"></span>
-               <p className="text-[10px] font-black uppercase tracking-[1em] text-indigo-400"># 情感映射 · MOOD ECHO</p>
-               <span className="h-[1px] w-16 bg-gradient-to-l from-transparent to-indigo-500"></span>
+      {/* 顶部热评卡片：高度模拟网易云风格 */}
+      <header className="h-[25%] flex flex-col items-center justify-center z-[60] px-6 md:px-20 mt-4">
+         <div 
+          key={quoteKey} 
+          onClick={handleMagicSpark} 
+          className={`animate-[fadeIn_1.2s] group cursor-pointer transition-all duration-700 w-full max-w-2xl bg-white/[0.03] border border-white/10 rounded-3xl p-6 md:p-10 backdrop-blur-xl shadow-2xl relative overflow-hidden ${isSoulLoading ? 'opacity-30 scale-95 blur-sm' : 'opacity-100 scale-100 hover:bg-white/[0.05]'}`}
+         >
+            <div className="flex items-center space-x-4 mb-6">
+               <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-zinc-800 to-zinc-600 border border-white/20 flex items-center justify-center overflow-hidden">
+                  <i className="fa-solid fa-user text-white/40"></i>
+               </div>
+               <div className="flex flex-col">
+                  <span className="text-[11px] font-black text-white/80 tracking-widest uppercase italic">云村匿名映射者</span>
+                  <span className="text-[8px] font-bold text-white/20 uppercase tracking-[0.2em] mt-1 italic">Atmosphere Trace System V4</span>
+               </div>
+               <div className="ml-auto flex items-center space-x-2 text-white/20 group-hover:text-pink-500/60 transition-colors">
+                  <i className="fa-solid fa-heart text-[10px]"></i>
+                  <span className="text-[9px] font-black tabular-nums">1.2w</span>
+               </div>
             </div>
-            <p className="text-2xl md:text-4xl font-serif-quote font-black tracking-tight italic leading-relaxed text-white drop-shadow-[0_4px_30px_rgba(0,0,0,0.9)] px-6 relative">
-              <span className="absolute -left-4 -top-4 text-6xl text-indigo-500/20 opacity-40 font-serif">“</span>
+            
+            <p className="text-xl md:text-2xl font-serif-quote font-black tracking-tight italic leading-relaxed text-white drop-shadow-md px-4 relative">
               {activeQuote}
-              <span className="absolute -right-4 -bottom-4 text-6xl text-pink-500/20 opacity-40 font-serif">”</span>
             </p>
+            
+            <div className="mt-6 flex items-center justify-between">
+               <div className="flex items-center space-x-3 opacity-20">
+                  <span className="h-[1px] w-8 bg-indigo-500"></span>
+                  <span className="text-[7px] font-black uppercase tracking-widest">子夜热评 · Night Echo</span>
+               </div>
+               <i className="fa-solid fa-sparkles text-indigo-400/40 text-sm group-hover:animate-pulse"></i>
+            </div>
+            
+            <div className="absolute -bottom-10 -right-10 text-[80px] font-black text-white/[0.01] italic select-none pointer-events-none group-hover:text-white/[0.03] transition-all">SOUL</div>
          </div>
       </header>
 
-      {/* 核心展示区 */}
-      <main className="h-[45%] flex flex-col items-center justify-center p-4 relative perspective-3000 z-50">
+      {/* 核心展示区：增加唱针 */}
+      <main className="h-[50%] flex flex-col items-center justify-center p-4 relative perspective-3000 z-50">
         <div 
           className={`relative w-full max-w-[360px] md:max-w-[480px] h-full transition-transform duration-[1.8s] cubic-bezier(0.15, 0.85, 0.15, 1) preserve-3d cursor-pointer ${isFlipped ? 'rotate-y-180' : ''}`}
           onClick={() => setIsFlipped(!isFlipped)}
         >
           {/* 正面：沉浸黑胶 */}
-          <div className={`absolute inset-0 backface-hidden flex flex-col items-center justify-center glass-dark-morphism rounded-[4rem] md:rounded-[5.5rem] border border-white/10 shadow-[0_80px_180px_-40px_rgba(0,0,0,1)] p-10 group overflow-hidden ${isPlaying ? 'dj-pulse-active' : ''}`}>
+          <div className={`absolute inset-0 backface-hidden flex flex-col items-center justify-center glass-dark-morphism rounded-[4rem] md:rounded-[5.5rem] border border-white/10 shadow-[0_60px_120px_-20px_rgba(0,0,0,1)] p-8 md:p-12 group overflow-hidden ${isPlaying ? 'dj-pulse-active' : ''}`}>
             
-            {/* 极光背景装饰 */}
-            <div className="absolute top-0 left-0 w-32 h-32 bg-indigo-500/10 blur-[60px] rounded-full group-hover:bg-indigo-500/30 transition-all duration-1000"></div>
-            <div className="absolute bottom-0 right-0 w-40 h-40 bg-pink-500/10 blur-[80px] rounded-full group-hover:bg-pink-500/30 transition-all duration-1000"></div>
+            {/* 唱针动画 */}
+            <div className="absolute top-0 right-1/4 w-32 h-40 z-50 transition-transform duration-1000 origin-top-right" style={{ transform: isPlaying ? 'rotate(15deg)' : 'rotate(-10deg)' }}>
+               <div className="w-2 h-32 bg-gradient-to-b from-zinc-400 to-zinc-700 rounded-full shadow-2xl relative">
+                  <div className="absolute -bottom-4 -left-2 w-6 h-10 bg-zinc-900 rounded-lg border border-white/10 flex items-center justify-center">
+                     <div className="w-1 h-4 bg-white/20 rounded-full"></div>
+                  </div>
+               </div>
+            </div>
 
             {/* 唱片主体 */}
-            <div className={`relative w-[75%] aspect-square rounded-full overflow-hidden shadow-[0_0_120px_rgba(0,0,0,1)] border-[16px] border-zinc-900 transition-all duration-[3s] ${isPlaying ? 'rotate-[360deg] animate-[spin_20s_linear_infinite] ring-8 ring-indigo-500/20' : ''}`}>
-              <img src={currentSong.coverUrl} className="w-full h-full object-cover grayscale-[15%] group-hover:grayscale-0 transition-all duration-1000" alt="Cover" />
-              <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,transparent_45%,rgba(0,0,0,0.75)_100%)]"></div>
+            <div className={`relative w-[70%] aspect-square rounded-full overflow-hidden shadow-[0_0_100px_rgba(0,0,0,1)] border-[14px] border-zinc-950 transition-all duration-[3s] ${isPlaying ? 'rotate-[360deg] animate-[spin_20s_linear_infinite] ring-4 ring-red-500/20' : ''}`}>
+              <img src={currentSong.coverUrl} className="w-full h-full object-cover grayscale-[10%] group-hover:grayscale-0 transition-all duration-1000" alt="Cover" />
+              <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,transparent_45%,rgba(0,0,0,0.8)_100%)]"></div>
               {/* 黑胶细纹 */}
-              <div className="absolute inset-0 opacity-30 bg-[repeating-radial-gradient(circle_at_center,transparent,transparent_1.5px,rgba(255,255,255,0.06)_2px)]"></div>
-              {/* 中心装饰点 */}
+              <div className="absolute inset-0 opacity-40 bg-[repeating-radial-gradient(circle_at_center,transparent,transparent_1px,rgba(255,255,255,0.05)_2px)]"></div>
+              {/* 中心 */}
               <div className="absolute inset-0 flex items-center justify-center">
-                 <div className="w-14 h-14 bg-black/90 rounded-full border border-white/20 shadow-inner flex items-center justify-center">
-                    <div className="w-3 h-3 bg-indigo-500 rounded-full animate-pulse shadow-[0_0_15px_rgba(99,102,241,1)]"></div>
+                 <div className="w-12 h-12 bg-black/90 rounded-full border border-white/10 shadow-inner flex items-center justify-center">
+                    <div className={`w-2.5 h-2.5 rounded-full ${isPlaying ? 'bg-red-500 animate-pulse shadow-[0_0_12px_#E60026]' : 'bg-white/20'}`}></div>
                  </div>
               </div>
             </div>
             
-            <div className="mt-10 text-center space-y-4 w-full px-8">
-              <h2 className="text-3xl md:text-5xl font-black tracking-tighter italic truncate aurora-text drop-shadow-[0_4px_20px_rgba(0,0,0,1)]">{currentSong.name}</h2>
-              <div className="flex items-center justify-center space-x-3 opacity-40 group-hover:opacity-100 transition-opacity">
-                <i className="fa-solid fa-compact-disc text-indigo-400 animate-spin-slow"></i>
-                <p className="text-[11px] font-black text-white uppercase tracking-[0.6em]">{currentSong.artist}</p>
+            <div className="mt-8 text-center space-y-3 w-full px-6">
+              <h2 className="text-2xl md:text-4xl font-black tracking-tighter italic truncate aurora-text drop-shadow-lg">{currentSong.name}</h2>
+              <div className="flex items-center justify-center space-x-3 opacity-30 group-hover:opacity-100 transition-opacity">
+                <i className="fa-solid fa-compact-disc text-red-500 animate-spin-slow"></i>
+                <p className="text-[10px] font-black text-white uppercase tracking-[0.5em]">{currentSong.artist}</p>
               </div>
             </div>
 
             {/* 实时 DJ 频谱模拟 */}
-            <div className="absolute bottom-8 left-0 right-0 flex items-end justify-center space-x-2 h-10 px-20">
-               {Array.from({length: 24}).map((_, i) => (
-                 <div key={i} className={`w-[4px] bg-gradient-to-t from-indigo-600 via-purple-500 to-pink-500 rounded-full transition-all duration-300 ${isPlaying ? 'dj-bar-anim' : 'h-2 opacity-10'}`} style={{ animationDelay: `${i * 0.04}s`, height: `${10 + Math.random() * 80}%` }}></div>
+            <div className="absolute bottom-6 left-0 right-0 flex items-end justify-center space-x-1.5 h-8 px-16">
+               {Array.from({length: 20}).map((_, i) => (
+                 <div key={i} className={`w-[3px] bg-gradient-to-t from-red-600 via-purple-500 to-indigo-500 rounded-full transition-all duration-300 ${isPlaying ? 'dj-bar-anim' : 'h-1.5 opacity-10'}`} style={{ animationDelay: `${i * 0.05}s`, height: `${5 + Math.random() * 95}%` }}></div>
                ))}
             </div>
           </div>
 
           {/* 背面：深夜映画歌词 */}
-          <div className="absolute inset-0 backface-hidden rotate-y-180 flex flex-col glass-dark-morphism rounded-[4rem] md:rounded-[5.5rem] shadow-[0_80px_180px_-40px_rgba(0,0,0,1)] overflow-hidden p-12 border border-white/15">
-             <div className="mb-10 flex items-center justify-between opacity-30">
-               <div className="flex flex-col">
-                  <span className="text-[11px] font-black uppercase tracking-[1em] text-indigo-400">子夜文字映射</span>
-                  <span className="text-[8px] font-bold text-white/30 uppercase tracking-[0.4em] mt-2 italic">Atmosphere Trace System V4</span>
-               </div>
-               <div className="flex space-x-3">
-                 <i className="fa-solid fa-moon text-xl text-indigo-500 animate-pulse"></i>
-                 <i className="fa-solid fa-bolt-lightning text-xl text-pink-500 animate-pulse delay-75"></i>
-               </div>
+          <div className="absolute inset-0 backface-hidden rotate-y-180 flex flex-col glass-dark-morphism rounded-[4rem] md:rounded-[5.5rem] shadow-[0_60px_120px_-20px_rgba(0,0,0,1)] overflow-hidden p-10 border border-white/15">
+             <div className="mb-8 flex items-center justify-between opacity-30">
+               <span className="text-[10px] font-black uppercase tracking-[0.8em] text-red-500">子夜文字映射</span>
+               <i className="fa-solid fa-bolt-lightning text-lg text-indigo-500 animate-pulse"></i>
              </div>
              
-             <div 
-               ref={lyricsScrollRef}
-               className="flex-1 overflow-y-auto no-scrollbar flex flex-col space-y-20 py-[25vh] px-4"
-             >
+             <div ref={lyricsScrollRef} className="flex-1 overflow-y-auto no-scrollbar flex flex-col space-y-16 py-[20vh] px-4">
                 {parsedLyrics.length > 0 ? (
                   parsedLyrics.map((line, idx) => (
-                    <p 
-                      key={idx}
-                      className={`text-2xl md:text-5xl font-serif-quote font-black tracking-tight transition-all duration-1000 text-center leading-relaxed ${
-                        activeLyricIndex === idx 
-                          ? 'text-white scale-110 opacity-100 drop-shadow-[0_0_40px_rgba(255,255,255,0.5)] translate-y-[-5px]' 
-                          : 'text-white/5 opacity-10 blur-[3px]'
-                      }`}
-                    >
-                      {line.text}
-                    </p>
+                    <p key={idx} className={`text-xl md:text-4xl font-serif-quote font-black tracking-tight transition-all duration-700 text-center leading-relaxed ${activeLyricIndex === idx ? 'text-white scale-110 opacity-100 drop-shadow-[0_0_30px_rgba(255,255,255,0.4)]' : 'text-white/5 opacity-10 blur-[2px]'}`}>{line.text}</p>
                   ))
                 ) : (
-                  <div className="h-full flex flex-col items-center justify-center space-y-16 opacity-15">
-                     <i className="fa-solid fa-atom text-8xl animate-spin-slow text-indigo-500"></i>
-                     <div className="text-center">
-                        <p className="text-[12px] font-black uppercase tracking-[1.2em] italic text-indigo-500 mb-4">正在捕获情感轨迹...</p>
-                        <p className="text-[8px] font-bold uppercase tracking-[0.5em] text-white/50 italic">Mapping subconscious data blocks</p>
-                     </div>
+                  <div className="h-full flex flex-col items-center justify-center space-y-12 opacity-10">
+                     <i className="fa-solid fa-atom text-6xl animate-spin-slow text-red-500"></i>
+                     <p className="text-[10px] font-black uppercase tracking-[1em] text-center italic">映射潜意识数据块...</p>
                   </div>
                 )}
              </div>
-             <p className="mt-10 text-center text-[10px] font-black uppercase tracking-[1.2em] opacity-30 hover:opacity-100 transition-opacity cursor-pointer">点击返回终端中心</p>
+             <p className="mt-8 text-center text-[8px] font-black uppercase tracking-[0.8em] opacity-20 hover:opacity-100 transition-opacity cursor-pointer">返回中心</p>
           </div>
         </div>
       </main>
 
-      {/* 底部控制中心 */}
-      <footer className="h-[25%] flex flex-col items-center justify-center px-10 md:px-24 pb-12 z-[60]">
+      {/* 底部控制中心：强调红色主调 */}
+      <footer className="h-[25%] flex flex-col items-center justify-center px-6 md:px-24 pb-8 z-[60]">
         
-        {/* 极光进度流 */}
-        <div className="w-full max-w-5xl flex items-center gap-10 mb-12 group/prog">
-          <span className="text-[11px] font-black text-white/20 tabular-nums w-14 text-center">{Math.floor(currentTime/60)}:{Math.floor(currentTime%60).toString().padStart(2,'0')}</span>
-          <div className="flex-1 h-2.5 bg-white/5 rounded-full relative overflow-hidden ring-1 ring-white/10 group-hover/prog:h-3.5 transition-all duration-500">
+        {/* 进度流 */}
+        <div className="w-full max-w-4xl flex items-center gap-6 md:gap-10 mb-8 group/prog">
+          <span className="text-[10px] font-black text-white/20 tabular-nums w-12 text-center">{Math.floor(currentTime/60)}:{Math.floor(currentTime%60).toString().padStart(2,'0')}</span>
+          <div className="flex-1 h-1.5 bg-white/5 rounded-full relative overflow-hidden group-hover/prog:h-2.5 transition-all duration-300 ring-1 ring-white/5">
             <input 
               type="range" min="0" max={duration || 0} step="0.1" 
               value={currentTime} onChange={(e) => onSeek(parseFloat(e.target.value))}
               className="absolute inset-0 w-full h-full opacity-0 z-40 cursor-pointer"
             />
-            <div className="absolute left-0 top-0 h-full bg-gradient-to-r from-indigo-500 via-purple-600 to-pink-500 shadow-[0_0_50px_rgba(99,102,241,1)] transition-all duration-300" style={{ width: `${(currentTime/duration)*100}%` }}></div>
-            {/* 游标光点 */}
-            <div className="absolute top-0 bottom-0 w-[4px] bg-white shadow-[0_0_20px_white] z-30" style={{ left: `${(currentTime/duration)*100}%` }}></div>
+            <div className="absolute left-0 top-0 h-full bg-gradient-to-r from-red-600 to-indigo-600 shadow-[0_0_20px_#E60026] transition-all duration-300" style={{ width: `${(currentTime/duration)*100}%` }}></div>
           </div>
-          <span className="text-[11px] font-black text-white/20 tabular-nums w-14 text-center">{Math.floor(duration/60)}:{Math.floor(duration%60).toString().padStart(2,'0')}</span>
+          <span className="text-[10px] font-black text-white/20 tabular-nums w-12 text-center">{Math.floor(duration/60)}:{Math.floor(duration%60).toString().padStart(2,'0')}</span>
         </div>
 
-        {/* 核心控制集 */}
+        {/* 控制按钮 */}
         <div className="w-full max-w-6xl flex items-center justify-between">
           
-          <div className="flex items-center space-x-10">
+          <div className="flex items-center space-x-6 md:space-x-10">
             <button 
               onClick={cyclePlaybackMode} 
-              className={`w-14 h-14 flex items-center justify-center rounded-[2rem] transition-all duration-500 ${playbackMode !== PlaybackMode.SEQUENCE ? 'bg-indigo-500/20 text-indigo-400 border border-indigo-500/30 shadow-2xl scale-110' : 'text-white/20 hover:text-white hover:bg-white/5'}`}
+              className={`w-12 h-12 flex items-center justify-center rounded-[1.5rem] transition-all ${playbackMode !== PlaybackMode.SEQUENCE ? 'bg-red-500/20 text-red-500 scale-110 shadow-lg' : 'text-white/20 hover:text-white'}`}
             >
-              <i className={`fa-solid ${playbackMode === PlaybackMode.SHUFFLE ? 'fa-shuffle' : playbackMode === PlaybackMode.REPEAT_ONE ? 'fa-rotate-left' : 'fa-list-ol'} text-xl`}></i>
+              <i className={`fa-solid ${playbackMode === PlaybackMode.SHUFFLE ? 'fa-shuffle' : playbackMode === PlaybackMode.REPEAT_ONE ? 'fa-rotate-left' : 'fa-list-ol'} text-base md:text-lg`}></i>
             </button>
             <button 
               onClick={() => setShowPlaylist(!showPlaylist)}
-              className={`w-14 h-14 flex items-center justify-center rounded-[2rem] transition-all duration-500 ${showPlaylist ? 'bg-white text-black shadow-2xl scale-110' : 'text-white/20 hover:text-white hover:bg-white/5'}`}
+              className={`w-12 h-12 flex items-center justify-center rounded-[1.5rem] transition-all ${showPlaylist ? 'bg-white text-black scale-110 shadow-2xl' : 'text-white/20 hover:text-white'}`}
             >
-              <i className="fa-solid fa-bars-staggered text-xl"></i>
+              <i className="fa-solid fa-bars-staggered text-base md:text-lg"></i>
             </button>
           </div>
 
-          <div className="flex items-center gap-14 md:gap-20">
-            <button onClick={() => onIndexChange((currentIndex - 1 + songs.length) % songs.length)} className="text-4xl text-white/15 hover:text-white transition-all hover:scale-125 hover:rotate-[-12deg] active:scale-90"><i className="fa-solid fa-backward-step"></i></button>
+          <div className="flex items-center gap-10 md:gap-16">
+            <button onClick={() => onIndexChange((currentIndex - 1 + songs.length) % songs.length)} className="text-3xl text-white/10 hover:text-white transition-all hover:scale-125 hover:-rotate-12"><i className="fa-solid fa-backward-step"></i></button>
             <button 
               onClick={onTogglePlay} 
-              className={`w-24 h-24 md:w-32 md:h-32 rounded-[3.5rem] bg-white text-black flex items-center justify-center shadow-[0_50px_120px_-30px_rgba(255,255,255,0.4)] hover:scale-110 active:scale-90 transition-all group/play ${isPlaying ? 'ring-8 ring-indigo-500/10' : ''}`}
+              className={`w-20 h-20 md:w-28 md:h-28 rounded-[2.5rem] md:rounded-[3.5rem] bg-white text-black flex items-center justify-center shadow-[0_30px_60px_-10px_rgba(255,255,255,0.3)] hover:scale-110 active:scale-95 transition-all group ${isPlaying ? 'ring-4 md:ring-8 ring-red-500/10' : ''}`}
             >
-              <i className={`fa-solid ${isPlaying ? 'fa-pause' : 'fa-play ml-2'} text-3xl md:text-5xl transition-transform`}></i>
+              <i className={`fa-solid ${isPlaying ? 'fa-pause' : 'fa-play ml-1.5'} text-2xl md:text-4xl`}></i>
             </button>
-            <button onClick={() => onIndexChange((currentIndex + 1) % songs.length)} className="text-4xl text-white/15 hover:text-white transition-all hover:scale-125 hover:rotate-[12deg] active:scale-90"><i className="fa-solid fa-forward-step"></i></button>
+            <button onClick={() => onIndexChange((currentIndex + 1) % songs.length)} className="text-3xl text-white/10 hover:text-white transition-all hover:scale-125 hover:rotate-12"><i className="fa-solid fa-forward-step"></i></button>
           </div>
 
-          <div className="flex items-center space-x-10">
+          <div className="flex items-center space-x-6 md:space-x-10">
             <button 
-              onClick={handleMagicSpark}
-              className={`w-14 h-14 flex items-center justify-center rounded-[2rem] text-pink-400 bg-pink-400/10 hover:bg-pink-400/30 transition-all border border-pink-400/20 ${isSoulLoading ? 'animate-spin' : 'hover:scale-110'}`}
-              title="刷新共鸣"
+              onClick={() => setShowShareModal(true)}
+              className="w-12 h-12 flex items-center justify-center rounded-[1.5rem] text-pink-500 bg-pink-500/10 hover:bg-pink-500/30 transition-all border border-pink-500/20"
+              title="生成共鸣海报"
             >
-              <i className={`fa-solid ${isSoulLoading ? 'fa-spinner' : 'fa-sparkles'} text-xl`}></i>
+              <i className="fa-solid fa-share-nodes text-lg"></i>
             </button>
-            <div className="hidden lg:flex items-center space-x-6 bg-white/5 p-4 rounded-[1.8rem] border border-white/5 group/vol shadow-xl">
-              <i className="fa-solid fa-volume-high text-white/20 group-hover/vol:text-indigo-400 transition-colors text-sm"></i>
-              <div className="w-24 h-2 bg-white/10 rounded-full relative overflow-hidden">
+            <div className="hidden lg:flex items-center space-x-4 bg-white/5 p-3 rounded-[1.2rem] border border-white/5">
+              <i className="fa-solid fa-volume-high text-white/20 text-xs"></i>
+              <div className="w-20 h-1 bg-white/10 rounded-full relative overflow-hidden">
                 <input 
                   type="range" min="0" max="1" step="0.01" value={volume} 
-                  onChange={(e) => {
-                    const v = parseFloat(e.target.value);
-                    setVolume(v);
-                    if(audioRef.current) audioRef.current.volume = v;
-                  }}
+                  onChange={(e) => { const v = parseFloat(e.target.value); setVolume(v); if(audioRef.current) audioRef.current.volume = v; }}
                   className="absolute inset-0 w-full h-full opacity-0 z-40 cursor-pointer"
                 />
-                <div className="absolute left-0 top-0 h-full bg-gradient-to-r from-indigo-500 to-pink-500 shadow-[0_0_15px_rgba(99,102,241,0.5)]" style={{ width: `${volume*100}%` }}></div>
+                <div className="absolute left-0 top-0 h-full bg-red-600" style={{ width: `${volume*100}%` }}></div>
               </div>
             </div>
           </div>
         </div>
       </footer>
 
-      {/* 播放清单模态层 */}
+      {/* 情感海报模态层 */}
+      {showShareModal && (
+         <div className="fixed inset-0 z-[1000] flex items-center justify-center p-6 bg-black/90 backdrop-blur-3xl animate-in fade-in duration-500">
+            <div className="relative max-w-md w-full animate-in zoom-in-95 duration-700">
+               {/* 海报预览卡片 */}
+               <div className="bg-white rounded-[3rem] p-10 flex flex-col shadow-[0_100px_200px_-50px_rgba(0,0,0,0.8)] overflow-hidden">
+                  <div className="aspect-[3/4] rounded-[2.5rem] overflow-hidden mb-10 shadow-3xl">
+                     <img src={currentSong.coverUrl} className="w-full h-full object-cover" />
+                  </div>
+                  <div className="space-y-6">
+                     <h3 className="text-4xl font-black text-black tracking-tighter italic leading-none">{currentSong.name}</h3>
+                     <p className="text-sm font-black text-black/40 uppercase tracking-widest">{currentSong.artist}</p>
+                     <div className="h-[1px] w-12 bg-red-600"></div>
+                     <p className="text-xl font-serif-quote font-black italic text-black leading-relaxed">
+                        “{activeQuote}”
+                     </p>
+                  </div>
+                  <div className="mt-12 pt-8 border-t border-black/5 flex items-center justify-between">
+                     <div className="flex flex-col">
+                        <span className="text-[10px] font-black text-red-600 uppercase tracking-[0.3em]">子夜回响 · 情感映射</span>
+                        <span className="text-[8px] font-bold text-black/20 uppercase tracking-[0.1em] mt-1">NOCTURNE ECHO V4.2</span>
+                     </div>
+                     <div className="w-12 h-12 bg-black rounded-2xl flex items-center justify-center">
+                        <i className="fa-solid fa-qrcode text-white"></i>
+                     </div>
+                  </div>
+               </div>
+               
+               <div className="absolute top-6 right-[-20px] flex flex-col space-y-4">
+                  <button onClick={() => setShowShareModal(false)} className="w-12 h-12 bg-white text-black rounded-full flex items-center justify-center shadow-2xl hover:scale-110 active:scale-95 transition-all"><i className="fa-solid fa-xmark"></i></button>
+                  <button onClick={() => { alert('已保存映射海报到本地 (模拟)'); setShowShareModal(false); }} className="w-12 h-12 bg-red-600 text-white rounded-full flex items-center justify-center shadow-2xl hover:scale-110 active:scale-95 transition-all"><i className="fa-solid fa-download"></i></button>
+               </div>
+            </div>
+         </div>
+      )}
+
+      {/* 播放清单模态层 (保持原有逻辑) */}
       {showPlaylist && (
-        <div className="absolute right-8 md:right-20 top-[12%] bottom-[12%] w-[360px] md:w-[480px] glass-dark-morphism rounded-[4.5rem] shadow-[0_150px_350px_-80px_rgba(0,0,0,1)] z-[500] p-14 animate-[fadeIn_0.6s] border border-white/25 ring-1 ring-white/10 flex flex-col">
-           <div className="flex items-center justify-between mb-14 flex-shrink-0">
-              <div className="flex flex-col">
-                 <h4 className="text-[18px] font-black uppercase tracking-[1em] aurora-text italic">序列映射</h4>
-                 <span className="text-[9px] font-bold text-white/30 uppercase tracking-[0.4em] mt-3 italic leading-none">DIGITAL AUDIO SEQUENCE V4.2</span>
-              </div>
-              <button onClick={() => setShowPlaylist(false)} className="w-14 h-14 flex items-center justify-center rounded-full bg-white/5 text-white/30 hover:text-white hover:bg-white/10 transition-all border border-white/15 shadow-2xl"><i className="fa-solid fa-xmark"></i></button>
+        <div className="absolute right-6 md:right-16 top-[10%] bottom-[10%] w-[320px] md:w-[420px] glass-dark-morphism rounded-[3.5rem] shadow-3xl z-[500] p-10 animate-[fadeIn_0.5s] border border-white/20 flex flex-col">
+           <div className="flex items-center justify-between mb-10">
+              <span className="text-[14px] font-black uppercase tracking-[0.8em] aurora-text">序列映射</span>
+              <button onClick={() => setShowPlaylist(false)} className="w-10 h-10 flex items-center justify-center rounded-full bg-white/5 text-white/30 hover:text-white transition-all"><i className="fa-solid fa-xmark text-sm"></i></button>
            </div>
            
-           <div className="flex-1 overflow-y-auto no-scrollbar space-y-8 pr-2">
+           <div className="flex-1 overflow-y-auto no-scrollbar space-y-6 pr-2">
               {paginatedPlaylist.map((s, idx) => {
                 const globalIdx = playlistPage * PAGE_SIZE + idx;
                 return (
-                  <div 
-                    key={s.id} 
-                    onClick={() => onIndexChange(globalIdx)}
-                    className={`flex items-center space-x-8 p-6 rounded-[3rem] cursor-pointer transition-all border ${currentIndex === globalIdx ? 'bg-indigo-500/20 border-indigo-500/50 text-indigo-100 scale-[1.08] shadow-3xl' : 'hover:bg-white/5 border-transparent text-white/20'}`}
-                  >
-                    <div className="w-18 h-18 rounded-[1.5rem] overflow-hidden flex-shrink-0 shadow-[0_15px_30px_rgba(0,0,0,0.6)] border border-white/10 ring-1 ring-white/5">
-                      <img src={s.coverUrl} className="w-full h-full object-cover grayscale-[20%] transition-all" alt="" />
+                  <div key={s.id} onClick={() => onIndexChange(globalIdx)} className={`flex items-center space-x-6 p-4 rounded-[2rem] cursor-pointer transition-all ${currentIndex === globalIdx ? 'bg-red-500/20 border border-red-500/30 text-white scale-[1.05]' : 'hover:bg-white/5 text-white/30'}`}>
+                    <div className="w-14 h-14 rounded-2xl overflow-hidden flex-shrink-0 shadow-lg border border-white/10">
+                      <img src={s.coverUrl} className="w-full h-full object-cover" />
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className={`text-[15px] font-black truncate ${currentIndex === globalIdx ? 'text-white' : 'text-white/70'}`}>{s.name}</p>
-                      <div className="flex items-center space-x-3 mt-2">
-                        <span className="w-3 h-[1px] bg-white/20"></span>
-                        <p className="text-[10px] font-bold uppercase opacity-30 truncate tracking-[0.2em] italic">{s.artist}</p>
-                      </div>
+                      <p className={`text-[13px] font-black truncate ${currentIndex === globalIdx ? 'text-white' : 'text-white/60'}`}>{s.name}</p>
+                      <p className="text-[9px] font-bold opacity-30 truncate tracking-widest mt-1 italic">{s.artist}</p>
                     </div>
-                    {currentIndex === globalIdx && (
-                      <div className="flex items-end space-x-2 h-5 px-3">
-                         <div className="w-[4px] bg-indigo-500 rounded-full animate-[dj-bar_0.4s_ease-in-out_infinite_alternate]"></div>
-                         <div className="w-[4px] bg-indigo-500 rounded-full animate-[dj-bar_0.6s_ease-in-out_infinite_alternate_0.2s]"></div>
-                         <div className="w-[4px] bg-indigo-500 rounded-full animate-[dj-bar_0.5s_ease-in-out_infinite_alternate_0.4s]"></div>
-                      </div>
-                    )}
                   </div>
                 );
               })}
            </div>
 
-           <div className="mt-14 flex items-center justify-between px-4 pt-10 border-t border-white/10">
-              <button disabled={playlistPage === 0} onClick={() => setPlaylistPage(p => p - 1)} className="w-16 h-16 flex items-center justify-center rounded-[2.2rem] bg-white/5 text-white/30 hover:text-white hover:bg-white/10 disabled:opacity-5 transition-all shadow-xl"><i className="fa-solid fa-chevron-left"></i></button>
-              <div className="flex flex-col items-center">
-                <span className="text-[16px] font-black tracking-[1.2em] text-white/40 uppercase">{playlistPage + 1} / {totalPages}</span>
-                <span className="text-[8px] font-bold text-white/10 uppercase tracking-[0.4em] mt-2 italic">PAGE MAPPING</span>
-              </div>
-              <button disabled={playlistPage >= totalPages - 1} onClick={() => setPlaylistPage(p => p + 1)} className="w-16 h-16 flex items-center justify-center rounded-[2.2rem] bg-white/5 text-white/30 hover:text-white hover:bg-white/10 disabled:opacity-5 transition-all shadow-xl"><i className="fa-solid fa-chevron-right"></i></button>
+           <div className="mt-10 flex items-center justify-between px-2 pt-6 border-t border-white/5">
+              <button disabled={playlistPage === 0} onClick={() => setPlaylistPage(p => p - 1)} className="w-12 h-12 flex items-center justify-center rounded-2xl bg-white/5 text-white/20 hover:text-white disabled:opacity-5 transition-all"><i className="fa-solid fa-chevron-left"></i></button>
+              <span className="text-[12px] font-black text-white/30 tracking-widest uppercase">{playlistPage + 1} / {totalPages}</span>
+              <button disabled={playlistPage >= totalPages - 1} onClick={() => setPlaylistPage(p => p + 1)} className="w-12 h-12 flex items-center justify-center rounded-2xl bg-white/5 text-white/20 hover:text-white disabled:opacity-5 transition-all"><i className="fa-solid fa-chevron-right"></i></button>
            </div>
         </div>
       )}
