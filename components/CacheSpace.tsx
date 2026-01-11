@@ -1,14 +1,10 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 
-// 定义 IndexedDB 常量 - 必须与 s3Service.ts 保持同步
 const DB_NAME = 'NocturneVirtualStorage';
 const MEDIA_STORE = 'MediaCache';
 const DUMMY_STORE = 'SubconsciousBlocks';
-const MAPPING_STORE = 'NameMapping';
-const DB_VERSION = 3; // 更新为 3 以匹配 s3Service.ts
-
-// 10GB 基准常量 (单位：字节)
+const DB_VERSION = 3; 
 const TEN_GB = 10 * 1024 * 1024 * 1024;
 
 interface CachedFile {
@@ -16,37 +12,26 @@ interface CachedFile {
   name: string;
   size: number;
   timestamp: number;
-  type: 'media' | 'dummy' | 'mapping';
+  type: 'media' | 'dummy';
 }
 
 const CacheSpace: React.FC = () => {
-  const [cacheStats, setCacheStats] = useState({
-    totalSize: 0,
-    items: 0,
-    usagePercent: 0
-  });
-
   const [vMemUsage, setVMemUsage] = useState(0);
   const [cachedFiles, setCachedFiles] = useState<CachedFile[]>([]);
-  const [isSwapping, setIsSwapping] = useState<'none' | 'small' | 'large'>('none');
-  const [cleaning, setCleaning] = useState<string | null>(null);
-  const [systemLog, setSystemLog] = useState<string[]>(['[SYS] 10GB 离线引擎就绪', '[SYS] 已拦截媒体总线...']);
+  const [systemLog, setSystemLog] = useState<string[]>(['[系统] 缓存引擎已启动', '[系统] 正在扫描本地文件...']);
 
   const getDB = (): Promise<IDBDatabase> => {
     return new Promise((resolve, reject) => {
       const request = indexedDB.open(DB_NAME, DB_VERSION);
       
-      // 同步升级逻辑，防止版本冲突或仓库缺失
-      request.onupgradeneeded = (e: any) => {
+      // 关键修复：处理对象库不存在的情况
+      request.onupgradeneeded = (event) => {
         const db = request.result;
         if (!db.objectStoreNames.contains(MEDIA_STORE)) {
           db.createObjectStore(MEDIA_STORE, { keyPath: 'id' });
         }
         if (!db.objectStoreNames.contains(DUMMY_STORE)) {
           db.createObjectStore(DUMMY_STORE, { keyPath: 'id' });
-        }
-        if (!db.objectStoreNames.contains(MAPPING_STORE)) {
-          db.createObjectStore(MAPPING_STORE, { keyPath: 'id' });
         }
       };
 
@@ -61,7 +46,7 @@ const CacheSpace: React.FC = () => {
       let total = 0;
       let files: CachedFile[] = [];
 
-      // 1. 读取媒体文件
+      // 获取媒体缓存
       const mediaTx = db.transaction(MEDIA_STORE, 'readonly');
       const mediaStore = mediaTx.objectStore(MEDIA_STORE);
       const mediaReq = mediaStore.getAll();
@@ -69,25 +54,25 @@ const CacheSpace: React.FC = () => {
       await new Promise((resolve) => {
         mediaReq.onsuccess = () => {
           mediaReq.result.forEach(item => {
-            const size = item.data instanceof Blob ? item.data.size : 0;
+            const size = item.data?.size || 0;
             total += size;
-            files.push({ id: item.id, name: item.name || 'Unknown Media', size, timestamp: item.timestamp, type: 'media' });
+            files.push({ id: item.id, name: item.name || '未知文件', size, timestamp: item.timestamp, type: 'media' });
           });
           resolve(null);
         };
       });
 
-      // 2. 读取虚拟填充
+      // 获取块缓存
       const dummyTx = db.transaction(DUMMY_STORE, 'readonly');
       const dummyStore = dummyTx.objectStore(DUMMY_STORE);
       const dummyReq = dummyStore.getAll();
-
+      
       await new Promise((resolve) => {
         dummyReq.onsuccess = () => {
           dummyReq.result.forEach(item => {
-            const size = item.data instanceof Blob ? item.data.size : 0;
+            const size = item.data?.size || 0;
             total += size;
-            files.push({ id: item.id, name: item.label || 'Empty Page', size, timestamp: item.timestamp, type: 'dummy' });
+            files.push({ id: item.id, name: item.label || '系统数据', size, timestamp: item.timestamp, type: 'dummy' });
           });
           resolve(null);
         };
@@ -95,211 +80,111 @@ const CacheSpace: React.FC = () => {
 
       setVMemUsage(total);
       setCachedFiles(files.sort((a, b) => b.timestamp - a.timestamp));
-    } catch (e) {
-      console.error('无法读取虚拟存储状态', e);
-      setSystemLog(prev => [`[ERR] 存储访问受阻: ${e instanceof Error ? e.message : '版本冲突'}`, ...prev].slice(0, 5));
+    } catch (e) { 
+      console.error("[Cache] 数据同步异常:", e);
+      setSystemLog(prev => [`[错误] 无法连接到 IndexedDB`, ...prev]);
     }
   }, []);
 
-  const calculateLSStats = () => {
-    let size = 0;
-    let items = 0;
-    for (let i = 0; i < localStorage.length; i++) {
-      const key = localStorage.key(i) || '';
-      const val = localStorage.getItem(key) || '';
-      size += (key.length + val.length) * 2;
-      items++;
-    }
-    const sizeInKB = size / 1024;
-    setCacheStats({
-      totalSize: sizeInKB,
-      items,
-      usagePercent: Math.min(100, (sizeInKB / 5120) * 100)
-    });
-  };
-
-  useEffect(() => {
-    calculateLSStats();
-    updateVMemStats();
-  }, [updateVMemStats]);
+  useEffect(() => { updateVMemStats(); }, [updateVMemStats]);
 
   const log = (msg: string) => {
     setSystemLog(prev => [`[${new Date().toLocaleTimeString()}] ${msg}`, ...prev].slice(0, 5));
   };
 
-  const handleAllocate = async (sizeInMB: number) => {
-    setIsSwapping(sizeInMB > 1 ? 'large' : 'small');
-    log(`正在分配 ${sizeInMB}MB 物理簇...`);
-    
+  const handlePurge = async () => {
+    if(!confirm('确定要清除所有本地缓存文件吗？这不会影响云端数据，但下次播放需要重新下载。')) return;
     try {
       const db = await getDB();
-      const transaction = db.transaction(DUMMY_STORE, 'readwrite');
-      const store = transaction.objectStore(DUMMY_STORE);
-      const buffer = new Uint8Array(sizeInMB * 1024 * 1024);
-      crypto.getRandomValues(buffer);
-      const blob = new Blob([buffer], { type: 'application/octet-stream' });
-      const id = Date.now().toString();
-      store.add({ id, data: blob, timestamp: Date.now(), label: `Subconscious-${sizeInMB}MB` });
-
-      transaction.oncomplete = () => {
-        log(`挂载成功：已手动占用 ${sizeInMB}MB 空间`);
-        updateVMemStats();
-        setIsSwapping('none');
-      };
-    } catch (e) {
-      log('存储异常');
-      setIsSwapping('none');
-    }
-  };
-
-  const handlePurge = async (type: 'physical' | 'virtual') => {
-    setCleaning(type);
-    if (type === 'physical') {
-      localStorage.clear();
-      setTimeout(() => { calculateLSStats(); setCleaning(null); log('物理缓存已重置'); }, 1000);
-    } else {
-      log('正在全量物理擦除...');
-      try {
-        const db = await getDB();
-        const tx1 = db.transaction(MEDIA_STORE, 'readwrite');
-        tx1.objectStore(MEDIA_STORE).clear();
-        const tx2 = db.transaction(DUMMY_STORE, 'readwrite');
-        tx2.objectStore(DUMMY_STORE).clear();
-        
-        setTimeout(() => {
-          updateVMemStats();
-          setCleaning(null);
-          log('10GB 空间已全量归零');
-        }, 1000);
-      } catch (e) {
-        setCleaning(null);
-        log('清除操作失败');
-      }
-    }
+      const tx = db.transaction([MEDIA_STORE, DUMMY_STORE], 'readwrite');
+      tx.objectStore(MEDIA_STORE).clear();
+      tx.objectStore(DUMMY_STORE).clear();
+      log('本地缓存已完全清理');
+      setTimeout(updateVMemStats, 500);
+    } catch (e) { log('操作失败'); }
   };
 
   const vMemPercent = (vMemUsage / TEN_GB) * 100;
-  const isGB = vMemUsage >= 1024 * 1024 * 1024;
-  const displaySize = isGB 
-    ? (vMemUsage / (1024 * 1024 * 1024)).toFixed(2) 
-    : (vMemUsage / (1024 * 1024)).toFixed(1);
+  const displaySize = (vMemUsage / (1024 * 1024)).toFixed(1);
 
   return (
-    <div className="h-full p-6 md:p-12 overflow-y-auto bg-[#020202] custom-scrollbar selection:bg-red-500/30">
-      <div className="max-w-5xl mx-auto space-y-10 pb-20 animate-in fade-in duration-1000">
+    <div className="h-full p-8 md:p-16 overflow-y-auto bg-transparent custom-scrollbar text-white">
+      <div className="max-w-5xl mx-auto space-y-16 pb-20">
         
-        <header className="flex flex-col md:flex-row md:items-end justify-between gap-6">
+        <header className="flex flex-col md:flex-row md:items-end justify-between gap-8">
           <div className="space-y-4">
-            <div className="flex items-center space-x-4">
-               <div className="w-12 h-12 bg-red-600 rounded-2xl flex items-center justify-center shadow-2xl">
-                  <i className="fa-solid fa-hard-drive text-white text-xl"></i>
-               </div>
-               <div className="flex flex-col">
-                  <h1 className="text-4xl font-black text-white tracking-tighter italic">10GB 离线共鸣引擎</h1>
-                  <span className="text-[10px] text-zinc-700 font-bold uppercase tracking-[0.3em]">Persistent Offline Orchestrator</span>
-               </div>
-            </div>
-            <p className="text-zinc-500 text-sm leading-relaxed max-w-xl">
-              此处正在真实管理您的磁盘。当您播放音乐或视频时，系统会自动将资源拦截并持久化至此。10GB 空间确保了即便断开网络，您的“情感回响”依然能瞬时开启。
-            </p>
+             <div className="w-16 h-16 bg-white/10 backdrop-blur-xl rounded-[1.5rem] flex items-center justify-center shadow-2xl border border-white/10">
+                <i className="fa-solid fa-server text-indigo-400 text-2xl"></i>
+             </div>
+             <h1 className="text-5xl font-black text-white tracking-tighter italic leading-none drop-shadow-lg">本地缓存</h1>
+             <p className="text-[10px] text-white/40 font-black uppercase tracking-[0.4em] leading-relaxed">离线管理 / 10GB 存储配额</p>
           </div>
+          <button onClick={handlePurge} className="px-10 py-5 glass-morphism text-white rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-white/10 transition-all shadow-xl">清理全部缓存</button>
         </header>
 
         <section className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-           <div className="lg:col-span-2 bg-white/[0.02] border border-white/5 rounded-[3.5rem] p-10 relative overflow-hidden">
-              <div className="flex flex-col md:flex-row items-center gap-12 relative z-10">
-                 <div className="relative w-56 h-56 flex items-center justify-center flex-shrink-0">
-                    <svg className="w-full h-full -rotate-90">
-                       <circle cx="112" cy="112" r="100" stroke="currentColor" strokeWidth="16" fill="transparent" className="text-white/5" />
-                       <circle cx="112" cy="112" r="100" stroke="currentColor" strokeWidth="16" fill="transparent" strokeDasharray={628} strokeDashoffset={628 - (628 * vMemPercent / 100)} className="text-red-600 transition-all duration-1000 shadow-[0_0_20px_red]" strokeLinecap="round" />
-                    </svg>
-                    <div className="absolute inset-0 flex flex-col items-center justify-center">
-                       <span className="text-4xl font-black italic text-white tracking-tighter">{displaySize} <span className="text-sm">{isGB ? 'GB' : 'MB'}</span></span>
-                       <span className="text-[8px] font-bold text-zinc-600 uppercase tracking-widest mt-3">Used / 10,240MB</span>
-                    </div>
+           <div className="lg:col-span-2 glass-morphism rounded-[3.5rem] p-12 flex flex-col md:flex-row items-center gap-12 shadow-sm">
+              <div className="relative w-56 h-56 flex items-center justify-center flex-shrink-0">
+                 <svg className="w-full h-full -rotate-90">
+                    <circle cx="112" cy="112" r="100" stroke="currentColor" strokeWidth="16" fill="transparent" className="text-white/5" />
+                    <circle cx="112" cy="112" r="100" stroke="currentColor" strokeWidth="16" fill="transparent" strokeDasharray={628} strokeDashoffset={628 - (628 * vMemPercent / 100)} className="text-indigo-500 transition-all duration-1000" strokeLinecap="round" />
+                 </svg>
+                 <div className="absolute inset-0 flex flex-col items-center justify-center">
+                    <span className="text-4xl font-black italic text-white tracking-tighter drop-shadow-md">{displaySize} <span className="text-xs uppercase">MB</span></span>
+                    <span className="text-[8px] font-black text-white/40 uppercase tracking-widest mt-3">已用存储空间</span>
                  </div>
+              </div>
 
-                 <div className="flex-1 space-y-6 w-full">
-                    <div className="p-6 bg-black/60 rounded-3xl border border-white/5 space-y-4">
-                       <div className="flex justify-between items-center text-[10px] font-black uppercase tracking-widest text-zinc-600">
-                          <span>实时 IO 指令集</span>
-                          <span className="animate-pulse text-red-600">WATCHING_DISK</span>
-                       </div>
-                       <div className="font-mono text-[11px] space-y-2 h-20 overflow-hidden">
-                          {systemLog.map((l, i) => <p key={i} className={i === 0 ? 'text-white' : 'text-zinc-700'}>{l}</p>)}
-                       </div>
-                    </div>
-                    
-                    <div className="grid grid-cols-2 gap-4">
-                       <div className="p-4 bg-white/[0.02] rounded-2xl border border-white/5">
-                          <p className="text-[8px] text-zinc-600 font-black uppercase">Cache Hits</p>
-                          <p className="text-lg font-black text-white">98.4%</p>
-                       </div>
-                       <div className="p-4 bg-white/[0.02] rounded-2xl border border-white/5">
-                          <p className="text-[8px] text-zinc-600 font-black uppercase">Offline Readiness</p>
-                          <p className="text-lg font-black text-green-500">OPTIMIZED</p>
-                       </div>
+              <div className="flex-1 space-y-6 w-full">
+                 <div className="p-8 bg-black/40 border border-white/5 rounded-[2rem] space-y-4 shadow-inner">
+                    <p className="text-[10px] font-black text-indigo-400 uppercase tracking-[0.3em]">系统日志</p>
+                    <div className="font-mono text-[10px] space-y-2 h-24 overflow-hidden text-white/60">
+                       {systemLog.map((l, i) => <p key={i} className={i === 0 ? 'text-white font-bold' : 'opacity-40'}>{l}</p>)}
                     </div>
                  </div>
               </div>
            </div>
 
-           <div className="bg-white/[0.02] border border-white/5 rounded-[3.5rem] p-8 flex flex-col justify-between">
-              <div className="space-y-6">
-                 <div className="flex items-center space-x-2 text-red-600">
-                    <i className="fa-solid fa-cloud-arrow-down text-xs"></i>
-                    <span className="text-[10px] font-black uppercase tracking-widest">离线数据落盘</span>
-                 </div>
-                 <p className="text-[11px] text-zinc-600 leading-relaxed font-bold italic">
-                   您可以手动向交换区注入随机页，或者仅仅通过“播放歌曲”来自动填充此空间。
-                 </p>
-                 <div className="space-y-3">
-                    <button onClick={() => handleAllocate(128)} disabled={isSwapping !== 'none'} className="w-full py-4 bg-red-600 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-red-500 transition-all shadow-xl shadow-red-600/20 active:scale-95">写入 128MB 填充簇</button>
-                    <button onClick={() => handlePurge('virtual')} className="w-full py-4 border border-red-600/30 text-red-600 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-red-600 hover:text-white transition-all">物理擦除</button>
-                 </div>
+           <div className="bg-indigo-600/20 backdrop-blur-2xl rounded-[3.5rem] p-12 text-white flex flex-col justify-between shadow-2xl relative overflow-hidden group border border-indigo-500/20">
+              <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-500/20 rounded-full blur-3xl -translate-y-12 translate-x-12 group-hover:bg-indigo-500/40 transition-all duration-700"></div>
+              <div className="space-y-4">
+                 <h4 className="text-xl font-black italic tracking-tighter text-indigo-100">离线播放已开启</h4>
+                 <p className="text-xs text-indigo-200/60 font-bold leading-relaxed">听过的歌曲将自动保存到本地，下次播放无需消耗流量。</p>
               </div>
+              <i className="fa-solid fa-shield-halved text-6xl text-indigo-500 opacity-20 mt-12 self-end"></i>
            </div>
         </section>
 
-        {/* 真实文件列表 */}
-        <section className="bg-white/[0.01] border border-white/5 rounded-[3rem] p-10 space-y-8">
-           <div className="flex items-center justify-between">
-              <div className="flex flex-col">
-                 <h3 className="text-xl font-black text-white italic tracking-tighter">映射区簇列表 (Sector Content)</h3>
-                 <p className="text-[10px] text-zinc-600 font-bold uppercase tracking-widest mt-1">Real-time persistent data tracking</p>
+        <section className="glass-morphism rounded-[3.5rem] p-12 space-y-10 shadow-sm">
+           <div className="flex items-center justify-between border-b border-white/5 pb-8">
+              <h3 className="text-xs font-black text-white uppercase tracking-[0.4em]">已缓存文件 ({cachedFiles.length})</h3>
+              <div className="flex items-center space-x-2">
+                <span className="text-[10px] text-white/20 uppercase font-black tracking-widest">Storage Node Active</span>
+                <div className="w-2 h-2 bg-indigo-500 rounded-full animate-pulse shadow-[0_0_15px_rgba(99,102,241,0.5)]"></div>
               </div>
-              <span className="text-[10px] bg-white/5 px-4 py-1.5 rounded-full text-zinc-500 font-black">{cachedFiles.length} 个节点已持久化</span>
            </div>
 
-           <div className="space-y-3 max-h-[400px] overflow-y-auto custom-scrollbar pr-2">
+           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
              {cachedFiles.length > 0 ? cachedFiles.map((file) => (
-               <div key={file.id} className="flex items-center justify-between p-5 bg-white/[0.02] border border-white/5 rounded-2xl group hover:bg-white/[0.04] transition-all">
+               <div key={file.id} className="flex items-center justify-between p-6 bg-white/5 border border-white/5 rounded-2xl group hover:bg-white/10 hover:shadow-2xl transition-all duration-500">
                   <div className="flex items-center space-x-5 truncate">
-                     <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${file.type === 'media' ? 'bg-red-600/20 text-red-600' : 'bg-zinc-900 text-zinc-700'}`}>
+                     <div className="w-10 h-10 bg-white/5 rounded-xl flex items-center justify-center flex-shrink-0 text-white/20 group-hover:text-indigo-400 transition-colors">
                         <i className={`fa-solid ${file.type === 'media' ? 'fa-music' : 'fa-database'} text-xs`}></i>
                      </div>
                      <div className="truncate">
                         <p className="text-xs font-black text-white truncate">{file.name}</p>
-                        <p className="text-[8px] text-zinc-600 font-bold uppercase mt-1">Inode: {file.id.slice(0, 12)}... | {new Date(file.timestamp).toLocaleString()}</p>
+                        <p className="text-[8px] text-white/30 font-bold uppercase mt-1 tracking-widest">{ (file.size / 1024 / 1024).toFixed(2) } MB · { new Date(file.timestamp).toLocaleDateString() }</p>
                      </div>
                   </div>
-                  <div className="flex items-center space-x-6 shrink-0">
-                     <span className="text-[10px] font-mono text-zinc-500">{(file.size / 1024 / 1024).toFixed(2)} MB</span>
-                     <div className="w-2 h-2 rounded-full bg-green-500/50 shadow-[0_0_10px_green]"></div>
-                  </div>
+                  <i className="fa-solid fa-check-circle text-indigo-500 text-[10px] opacity-0 group-hover:opacity-100 transition-all drop-shadow-glow"></i>
                </div>
              )) : (
-               <div className="py-20 text-center space-y-4">
-                  <i className="fa-solid fa-wind text-4xl text-zinc-900"></i>
-                  <p className="text-xs font-black text-zinc-800 uppercase tracking-widest">映射区尚未发现真实文件</p>
+               <div className="md:col-span-2 py-20 text-center opacity-20">
+                 <p className="text-[10px] font-black uppercase tracking-[0.5em]">本地存储空间为空</p>
                </div>
              )}
            </div>
         </section>
-
-        <footer className="text-center opacity-10">
-           <p className="text-[8px] font-black uppercase tracking-[1em]">Industrial Grade Memory Management System</p>
-        </footer>
       </div>
     </div>
   );

@@ -1,100 +1,100 @@
+
 /**
- * 本地拼音-中文映射字典（深度优化版）
- * 包含常用音乐标签、情绪词汇及用户提供的特定文案
+ * 本地拼音-中文映射字典（核心映射库）
  */
 const PINYIN_MAP: Record<string, string> = {
-  // 基础词汇
-  // 移除了重复的 'bei', 'zi', 'ye' 键以修复语法错误
-  'zhe': '这', 'bei': '辈', 'zi': '子', 'wo': '我', 'ni': '你', 'ta': '他',
-  'ai': '爱', 'hen': '恨', 'tong': '痛', 'ku': '苦', 'le': '乐',
-  'ye': '夜', 'se': '色', 'hui': '回', 'xiang': '响',
-  
-  // 组合词
   'zhebeizi': '这辈子',
-  'zhe bei zi': '这辈子',
-  'wo de': '我的',
-  'ni de': '你的',
   'kongtouzhipiao': '空头支票',
-  'kong tou zhi piao': '空头支票',
-  'renjianshuge': '人间失格',
-  'ren jian shi ge': '人间失格',
   'shanggan': '伤感',
-  'shang gan': '伤感',
-  'shiqu': '失去',
-  'shi qu': '失去',
-  'huiyi': '回忆',
-  'hui yi': '回忆',
-  'gudu': '孤独',
-  'gu du': '孤独',
-  'weilai': '未来',
-  'wei lai': '未来',
-  'fangshou': '放手',
-  'fang shou': '放手',
-  'dj': 'DJ',
-  'remix': '重混',
   'wangyiyun': '网易云',
-  'wang yiyun': '网易云',
-  'gequ': '歌曲',
-  'ge qu': '歌曲',
-  'pinyin': '拼音',
-  'yisheng': '一生',
-  'yi sheng': '一生',
-  'shiguang': '时光',
-  'shi guang': '时光',
-  'wuhui': '无悔',
-  'wu hui': '无悔',
-  'nanshou': '难受',
-  'nan shou': '难受',
-  'xin sui': '心碎',
-  'xinsui': '心碎',
-  'wuye': '午夜',
-  'wu ye': '午夜',
-  'diantai': '电台',
-  'dian tai': '电台'
+  'ziye': '子夜',
+  'huixiang': '回响',
+  'caijing': '财经',
+  'renwu': '人物',
+  'jianghu': '江湖',
+  'dj': 'DJ',
+  'piao': '票',
+  'emo': 'emo'
 };
 
 /**
- * 动态翻译引擎
- * 支持空格分词、连写检测及部分翻译
+ * 标签自动关联规则
+ * 更新说明：#音乐->#DJ, #深夜->#民谣, 新增：#江湖, #金融播客, #心灵鸡汤, #emo, #人物志, #子夜回响, #每日财经, #皮一下挺好, #未成年勿入
+ */
+export const AUTO_TAG_RULES: Record<string, string> = {
+  'dj': '#DJ',
+  'remix': '#DJ',
+  'shanggan': '#emo',
+  'xinsui': '#emo',
+  'emo': '#emo',
+  'folks': '#民谣',
+  'minyao': '#民谣',
+  'ye': '#民谣',
+  'jianghu': '#江湖',
+  'wuxia': '#江湖',
+  'caijing': '#每日财经',
+  'money': '#金融播客',
+  'finance': '#金融播客',
+  'jitang': '#心灵鸡汤',
+  'story': '#人物志',
+  'renwu': '#人物志',
+  'ziye': '#子夜回响',
+  'huixiang': '#子夜回响',
+  'pi': '#皮一下挺好',
+  '18': '#未成年勿入',
+  'nsfw': '#未成年勿入'
+};
+
+/**
+ * 贪婪算法本地翻译：将拼音文件名还原为中文
  */
 export const localTranslate = (text: string): string => {
   if (!text) return '';
-  
-  // 处理常见的连接符
   const normalized = text.toLowerCase().replace(/[-_]/g, ' ').trim();
-  
-  // 1. 尝试全字匹配
-  if (PINYIN_MAP[normalized]) {
-    return PINYIN_MAP[normalized];
-  }
+  if (PINYIN_MAP[normalized]) return PINYIN_MAP[normalized];
 
-  // 2. 尝试分词匹配 (空格分隔)
   const words = normalized.split(/\s+/);
   let result = '';
-  let foundAny = false;
+  let hasHit = false;
 
   for (const word of words) {
     if (PINYIN_MAP[word]) {
       result += PINYIN_MAP[word];
-      foundAny = true;
+      hasHit = true;
     } else {
-      // 尝试对连写的单词进行简单的贪婪匹配（模拟拼音输入法）
-      let tempWord = word;
-      let subResult = '';
-      let subFound = false;
-      
-      // 这里的逻辑比较简单，仅作示意，实际中拼音切分较复杂
-      // 优先匹配长词
-      for (const [key, val] of Object.entries(PINYIN_MAP)) {
-        if (tempWord.includes(key) && key.length > 2) {
-          tempWord = tempWord.replace(key, val);
-          subFound = true;
-          foundAny = true;
+      let current = word;
+      let subHit = false;
+      for (let i = current.length; i >= 2; i--) {
+        const sub = current.substring(0, i);
+        if (PINYIN_MAP[sub]) {
+          result += PINYIN_MAP[sub];
+          current = current.substring(i);
+          i = current.length + 1;
+          subHit = true;
+          hasHit = true;
         }
       }
-      result += subFound ? tempWord : word;
+      if (!subHit) result += word;
+      else if (current) result += current;
     }
   }
 
-  return foundAny ? result : text;
+  return hasHit ? result : text;
+};
+
+/**
+ * 规则引擎：根据标题和艺术家自动提取标签
+ */
+export const extractLocalTags = (title: string, artist: string): string[] => {
+  const tags = new Set<string>();
+  const combined = (title + ' ' + artist).toLowerCase();
+  
+  Object.entries(AUTO_TAG_RULES).forEach(([key, tag]) => {
+    if (combined.includes(key)) {
+      tags.add(tag);
+    }
+  });
+  
+  if (tags.size === 0) tags.add('#DJ');
+  return Array.from(tags);
 };

@@ -4,180 +4,173 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>网忆云 - 深夜第一伤感DJ频道</title>
-  <!-- 移除已弃用的 plugins=line-clamp 参数以消除警告 -->
+  <title>网忆云 - 极光音乐空间</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   <style>
-    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800;900&display=swap');
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800;900&display=swap');
     
     :root {
-      --netease-red: #C20C0C;
+      --aurora-1: #020617;
+      --aurora-2: #1e1b4b;
+      --aurora-3: #4c1d95;
+      --aurora-4: #831843;
+      --accent-indigo: #6366f1;
+      --accent-purple: #8b5cf6;
+      --accent-pink: #ec4899;
+      --glass-bg: rgba(0, 0, 0, 0.5);
+      --glass-border: rgba(255, 255, 255, 0.05);
+      --text-brightness: 1;
+      --border-width: 1px;
     }
     
+    .high-contrast {
+      --aurora-1: #000000;
+      --aurora-2: #050510;
+      --glass-bg: rgba(0, 0, 0, 0.9);
+      --glass-border: rgba(255, 255, 255, 0.2);
+      --text-brightness: 1.2;
+      --border-width: 2px;
+    }
+
     * {
-      font-family: 'Inter', -apple-system, "Helvetica Neue", Arial, sans-serif;
+      font-family: 'Inter', -apple-system, system-ui, sans-serif;
+      -webkit-font-smoothing: antialiased;
       box-sizing: border-box;
     }
 
     body {
-      background-color: #020202;
-      color: #fff;
       margin: 0;
       padding: 0;
       overflow: hidden;
-    }
-
-    /* 根容器样式保护 */
-    #root {
-      position: relative;
-      z-index: 10;
-      width: 100vw;
       height: 100vh;
       display: flex;
+      background: var(--aurora-1);
+      color: white;
+      transition: background 0.5s ease;
     }
 
-    /* 初始加载动画 */
+    .aurora-container {
+      position: fixed;
+      inset: 0;
+      z-index: -2;
+      background: var(--aurora-1);
+      background-image: radial-gradient(ellipse at top, var(--aurora-2), var(--aurora-1), #000);
+    }
+
+    .aurora-fluid {
+      position: fixed;
+      inset: 0;
+      z-index: -1;
+      background: linear-gradient(125deg, 
+        rgba(99, 102, 241, 0.15), 
+        rgba(139, 92, 246, 0.1), 
+        rgba(236, 72, 153, 0.1), 
+        rgba(99, 102, 241, 0.1)
+      );
+      background-size: 400% 400%;
+      animation: aurora-flow 15s ease infinite alternate;
+      filter: blur(60px);
+    }
+
+    .high-contrast .aurora-fluid {
+      opacity: 0.3;
+    }
+
+    @keyframes aurora-flow {
+      0% { background-position: 0% 50%; }
+      50% { background-position: 100% 50%; }
+      100% { background-position: 0% 50%; }
+    }
+
+    .glass-morphism {
+      background: rgba(255, 255, 255, 0.03);
+      backdrop-filter: blur(30px);
+      -webkit-backdrop-filter: blur(30px);
+      border: var(--border-width) solid rgba(255, 255, 255, 0.08);
+    }
+
+    .glass-dark-morphism {
+      background: var(--glass-bg);
+      backdrop-filter: blur(50px);
+      -webkit-backdrop-filter: blur(50px);
+      border: var(--border-width) solid var(--glass-border);
+      transition: background 0.5s ease, border 0.5s ease;
+    }
+
+    .aurora-text {
+      background: linear-gradient(to right, #818cf8, #a78bfa, #f472b6);
+      -webkit-background-clip: text;
+      background-clip: text;
+      color: transparent;
+      filter: drop-shadow(0 0 8px rgba(139, 92, 246, 0.3));
+    }
+
+    .high-contrast .aurora-text {
+       filter: drop-shadow(0 0 12px rgba(139, 92, 246, 0.6));
+    }
+
+    body {
+       filter: brightness(var(--text-brightness));
+    }
+
+    .perspective-3000 { perspective: 3000px; }
+    .preserve-3d { transform-style: preserve-3d; }
+    .backface-hidden { backface-visibility: hidden; -webkit-backface-visibility: hidden; }
+    .rotate-y-180 { transform: rotateY(180deg); }
+
     .initial-loader {
       position: fixed;
       inset: 0;
+      background: #000;
+      z-index: 10000;
       display: flex;
-      flex-direction: column;
       align-items: center;
       justify-content: center;
-      background: #020202;
-      z-index: 5;
+      transition: opacity 1.2s ease;
     }
 
-    .loader-spin {
-      width: 40px;
-      height: 40px;
-      border: 3px solid rgba(255,255,255,0.05);
-      border-top-color: #C20C0C;
-      border-radius: 50%;
-      animation: spin 1s linear infinite;
-    }
+    .no-scrollbar::-webkit-scrollbar { display: none; }
+    .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
 
-    @keyframes spin {
-      to { transform: rotate(360deg); }
+    @keyframes dj-bar {
+      0%, 100% { height: 15%; opacity: 0.2; transform: scaleY(1); }
+      50% { height: 100%; opacity: 1; transform: scaleY(1.2); }
     }
+    .dj-bar-anim { animation: dj-bar 0.6s ease-in-out infinite; }
 
-    /* 噪点覆盖层 */
-    body::after {
-      content: "";
-      position: fixed;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
-      pointer-events: none;
-      background: url('https://www.transparenttextures.com/patterns/stardust.png');
-      opacity: 0.05;
-      z-index: 9999;
+    @keyframes floating {
+      0%, 100% { transform: translateY(0) rotate(0); }
+      50% { transform: translateY(-10px) rotate(1deg); }
     }
+    .floating-anim { animation: floating 6s ease-in-out infinite; }
 
-    @keyframes rotate {
-      from { transform: rotate(0deg); }
-      to { transform: rotate(360deg); }
-    }
-
-    .animate-spin-slow {
-      animation: rotate 24s linear infinite;
-    }
-    
-    .animate-spin-paused {
-      animation-play-state: paused;
-    }
-    
-    .vinyl-border {
-      background: repeating-radial-gradient(
-        circle,
-        #0a0a0a 0px,
-        #0a0a0a 2px,
-        #151515 3px,
-        #0a0a0a 4px
-      );
-    }
-
-    .custom-scrollbar::-webkit-scrollbar {
-      width: 4px;
-    }
-    .custom-scrollbar::-webkit-scrollbar-track {
-      background: transparent;
-    }
-    .custom-scrollbar::-webkit-scrollbar-thumb {
-      background: rgba(255, 255, 255, 0.05);
-      border-radius: 10px;
-    }
-
-    input[type="range"] {
-      -webkit-appearance: none;
-      background: transparent;
-      cursor: pointer;
-    }
-
-    input[type="range"]::-webkit-slider-thumb {
-      -webkit-appearance: none;
-      height: 16px;
-      width: 16px;
-      border-radius: 50%;
-      background: #ffffff;
-      box-shadow: 0 0 10px rgba(0,0,0,0.5);
-      margin-top: -6px;
-    }
-
-    input[type="range"]::-webkit-slider-runnable-track {
-      width: 100%;
-      height: 6px;
-      cursor: pointer;
-      border-radius: 3px;
-    }
-
-    #error-display {
-      position: fixed;
-      top: 0;
-      left: 0;
-      width: 100%;
-      padding: 20px;
-      background: #C20C0C;
-      color: white;
-      z-index: 10000;
-      font-size: 12px;
-      display: none;
-    }
+    .glow-indigo { box-shadow: 0 0 30px 2px rgba(99, 102, 241, 0.3); }
+    .high-contrast .glow-indigo { box-shadow: 0 0 50px 5px rgba(99, 102, 241, 0.5); }
   </style>
-  <script>
-    window.onerror = function(msg, url, lineNo, columnNo, error) {
-      var display = document.getElementById('error-display');
-      if (display) {
-        display.style.display = 'block';
-        display.innerText = '运行时异常: ' + msg + '\n位置: ' + url + ':' + lineNo;
-      }
-      return false;
-    };
-  </script>
-<script type="importmap">
+  <script type="importmap">
 {
   "imports": {
     "react": "https://esm.sh/react@19.0.0",
     "react-dom": "https://esm.sh/react-dom@19.0.0",
     "react-dom/": "https://esm.sh/react-dom@19.0.0/",
     "react/": "https://esm.sh/react@19.0.0/",
-    "@aws-sdk/client-s3": "https://esm.sh/@aws-sdk/client-s3@3.712.0?bundle&target=browser"
+    "@aws-sdk/client-s3": "https://esm.sh/@aws-sdk/client-s3@3.712.0?bundle&target=browser",
+    "@google/genai": "https://esm.sh/@google/genai@^1.35.0"
   }
 }
 </script>
-<!-- 必须添加以下脚本标签来启动应用 -->
-<script type="module" src="index.tsx"></script>
+  <script type="module" src="index.tsx"></script>
 </head>
-<body class="select-none">
-  <div id="error-display"></div>
-  <div id="root">
-    <!-- 初始加载状态，防止黑屏感 -->
-    <div class="initial-loader">
-      <div class="loader-spin"></div>
-      <p style="margin-top: 20px; font-size: 10px; font-weight: 900; letter-spacing: 0.4em; color: #333; text-transform: uppercase;">Initializing Nocturne Echo...</p>
-    </div>
+<body>
+  <div class="initial-loader">
+     <div class="flex flex-col items-center">
+        <div class="w-16 h-16 border-4 border-white/5 border-t-indigo-500 rounded-full animate-spin mb-4"></div>
+        <p class="text-[10px] font-black uppercase tracking-[0.6em] text-indigo-400">正在映射极光空间...</p>
+     </div>
   </div>
+  <div class="aurora-container"></div>
+  <div class="aurora-fluid"></div>
+  <div id="root"></div>
 </body>
 </html>

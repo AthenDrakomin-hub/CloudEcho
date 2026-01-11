@@ -2,7 +2,7 @@
 import { S3Client, ListObjectsV2Command } from "@aws-sdk/client-s3";
 import { S3_CONFIG, DEFAULT_COVERS, EDGE_FUNCTION_CONFIG } from "../constants";
 import { Song, Video } from "../types";
-import { localTranslate } from "./translationService";
+import { localTranslate, extractLocalTags } from "./translationService";
 
 const client = new S3Client({
   endpoint: S3_CONFIG.endpoint,
@@ -14,104 +14,62 @@ const client = new S3Client({
   forcePathStyle: true,
 });
 
-// IndexedDB 配置扩展
-const DB_NAME = 'NocturneVirtualStorage';
-const STORE_NAME = 'MediaCache';
-const MAPPING_STORE = 'NameMapping';
-const DB_VERSION = 3; // 升级版本以增加仓库
-
-const getDB = (): Promise<IDBDatabase> => {
-  return new Promise((resolve, reject) => {
-    const request = indexedDB.open(DB_NAME, DB_VERSION);
-    request.onupgradeneeded = (e: any) => {
-      const db = request.result;
-      if (!db.objectStoreNames.contains(STORE_NAME)) {
-        db.createObjectStore(STORE_NAME, { keyPath: 'id' });
-      }
-      if (!db.objectStoreNames.contains('SubconsciousBlocks')) {
-        db.createObjectStore('SubconsciousBlocks', { keyPath: 'id' });
-      }
-      if (!db.objectStoreNames.contains(MAPPING_STORE)) {
-        db.createObjectStore(MAPPING_STORE, { keyPath: 'id' });
-      }
-    };
-    request.onsuccess = () => resolve(request.result);
-    request.onerror = () => reject(request.error);
-  });
+/**
+ * 哈希确定性算法：将字符串映射到 DEFAULT_COVERS 索引
+ * 确保同一首歌在任何时候展示的“默认封面”是同一张
+ */
+const getDeterministicCover = (seed: string): string => {
+  let hash = 0;
+  for (let i = 0; i < seed.length; i++) {
+    hash = ((hash << 5) - hash) + seed.charCodeAt(i);
+    hash |= 0; 
+  }
+  const index = Math.abs(hash) % DEFAULT_COVERS.length;
+  return DEFAULT_COVERS[index];
 };
 
-/**
- * 获取文件的虚拟显示名称
- */
-export const getVirtualName = async (id: string, defaultName: string): Promise<string> => {
+const base64ToUtf8 = (str: string): string | null => {
   try {
-    const db = await getDB();
-    const tx = db.transaction(MAPPING_STORE, 'readonly');
-    const store = tx.objectStore(MAPPING_STORE);
-    const result = await new Promise<any>((resolve) => {
-      const req = store.get(id);
-      req.onsuccess = () => resolve(req.result);
-      req.onerror = () => resolve(null);
-    });
-    return result ? result.name : localTranslate(defaultName);
+    let base64 = str.replace(/-/g, '+').replace(/_/g, '/');
+    while (base64.length % 4) base64 += '=';
+    return decodeURIComponent(escape(atob(base64)));
   } catch (e) {
-    return localTranslate(defaultName);
+    return null;
   }
 };
 
-/**
- * 保存文件的虚拟显示名称
- */
-export const saveVirtualName = async (id: string, name: string): Promise<void> => {
-  const db = await getDB();
-  const tx = db.transaction(MAPPING_STORE, 'readwrite');
-  tx.objectStore(MAPPING_STORE).put({ id, name, timestamp: Date.now() });
+const utf8ToBase64 = (str: string): string => {
+  try {
+    return btoa(unescape(encodeURIComponent(str)))
+      .replace(/\+/g, '-')
+      .replace(/\//g, '_')
+      .replace(/=+$/, '');
+  } catch (e) {
+    return str;
+  }
 };
 
-export const getCachedMediaUrl = async (id: string, remoteUrl: string): Promise<string> => {
-  try {
-    const db = await getDB();
-    const transaction = db.transaction(STORE_NAME, 'readonly');
-    const store = transaction.objectStore(STORE_NAME);
-    const cached = await new Promise<any>((resolve) => {
-      const req = store.get(id);
-      req.onsuccess = () => resolve(req.result);
-      req.onerror = () => resolve(null);
-    });
-
-    if (cached && cached.data instanceof Blob) {
-      return URL.createObjectURL(cached.data);
+export const getVirtualMetadata = (physicalKey: string): { name: string, tags: string[] } => {
+  const nameWithoutExt = physicalKey.replace(/\.[^/.]+$/, "");
+  
+  if (nameWithoutExt.startsWith('v3-enc-')) {
+    const parts = nameWithoutExt.split('-');
+    if (parts.length >= 4) {
+      const nameEncoded = parts[2];
+      const tagsEncoded = parts[3];
+      const decodedName = base64ToUtf8(nameEncoded);
+      const decodedTags = base64ToUtf8(tagsEncoded);
+      
+      return {
+        name: decodedName || localTranslate(nameEncoded),
+        tags: decodedTags ? decodedTags.split(',').filter(t => t) : []
+      };
     }
-
-    const response = await fetch(remoteUrl);
-    if (!response.ok) throw new Error('Network response was not ok');
-    const blob = await response.blob();
-    const writeTx = db.transaction(STORE_NAME, 'readwrite');
-    writeTx.objectStore(STORE_NAME).put({
-      id,
-      data: blob,
-      timestamp: Date.now(),
-      name: remoteUrl.split('/').pop() || 'unknown'
-    });
-    return URL.createObjectURL(blob);
-  } catch (e) {
-    return remoteUrl;
   }
-};
 
-const getProjectRef = () => 'zlbemopcgjohrnyyiwvs';
-
-const cleanKey = (fullPath: string, prefix: string): string => {
-  let raw = fullPath;
-  if (prefix && fullPath.startsWith(prefix)) {
-    raw = fullPath.substring(prefix.length);
-  }
-  raw = raw.replace(/^\//, "");
-  try {
-    return decodeURIComponent(raw);
-  } catch (e) {
-    return raw;
-  }
+  // 兼容老版本和原始文件名
+  const translatedName = localTranslate(nameWithoutExt);
+  return { name: translatedName, tags: [] };
 };
 
 export const fetchSongs = async (): Promise<Song[]> => {
@@ -133,86 +91,96 @@ export const fetchSongs = async (): Promise<Song[]> => {
       if (!audioExtensions.some(ext => keyLower.endsWith(ext)) || keyLower.endsWith('/')) continue;
 
       const fullPath = item.Key!;
-      const decodedFileName = cleanKey(fullPath, S3_CONFIG.folderPrefix);
-      const id = item.ETag?.replace(/"/g, '') || Math.random().toString(36).substring(7);
+      const physicalFileName = fullPath.substring((S3_CONFIG.folderPrefix || "").length).replace(/^\//, "");
+      const id = item.ETag?.replace(/"/g, '') || fullPath;
       
-      // 核心：尝试获取虚拟中文名称
-      const displayName = await getVirtualName(id, decodedFileName.replace(/\.[^/.]+$/, ""));
+      let { name, tags } = getVirtualMetadata(physicalFileName);
       
-      const nameParts = displayName.split('-').map(s => s.trim());
+      const nameParts = name.split('-').map(s => s.trim());
       let artist = 'CloudEcho';
-      let title = displayName;
+      let title = name;
       if (nameParts.length > 1) {
         artist = nameParts[0];
         title = nameParts.slice(1).join(' - ');
       }
 
+      // 如果 V3 编码中没有标签，则根据规则引擎自动分类
+      if (tags.length === 0) {
+        tags = extractLocalTags(title, artist);
+      }
+
       const encodedPath = fullPath.split('/').map(segment => encodeURIComponent(segment)).join('/');
-      const publicUrl = `https://${getProjectRef()}.supabase.co/storage/v1/object/public/${S3_CONFIG.bucketName}/${encodedPath}`;
+      const publicUrl = `https://zlbemopcgjohrnyyiwvs.supabase.co/storage/v1/object/public/${S3_CONFIG.bucketName}/${encodedPath}`;
       
       songs.push({
         id,
         name: title,
         artist: artist,
         url: publicUrl,
-        coverUrl: DEFAULT_COVERS[i % DEFAULT_COVERS.length],
+        // 使用确定性算法补全封面
+        coverUrl: getDeterministicCover(title + artist), 
         size: item.Size,
-        lastModified: item.LastModified
+        lastModified: item.LastModified,
+        tags: tags
       });
     }
     return songs;
   } catch (error) {
-    console.error("fetchSongs Error:", error);
     return [];
   }
 };
 
-export const fetchVideos = async (): Promise<Video[]> => {
+export const generateV3Name = (name: string, tags: string[], extension: string): string => {
+  const nameEncoded = utf8ToBase64(name);
+  const tagsEncoded = utf8ToBase64(tags.join(','));
+  const hash = Math.random().toString(36).substring(2, 6);
+  return `v3-enc-${nameEncoded}-${tagsEncoded}-${hash}.${extension}`;
+};
+
+export const renameSongV3 = async (oldUrl: string, artist: string, title: string, tags: string[]): Promise<boolean> => {
   try {
-    const command = new ListObjectsV2Command({
-      Bucket: S3_CONFIG.bucketName,
-      Prefix: S3_CONFIG.videoFolderPrefix || undefined,
-    });
-    const response = await client.send(command);
-    if (!response.Contents) return [];
+    const urlParts = oldUrl.split('/');
+    const bucketIndex = urlParts.indexOf(S3_CONFIG.bucketName);
+    const encodedOldKey = urlParts.slice(bucketIndex + 1).join('/');
+    const oldKey = decodeURIComponent(encodedOldKey);
     
-    const videos: Video[] = [];
-    const videoExtensions = ['.mp4', '.mov', '.webm', '.mkv', '.avi', '.3gp'];
+    const ext = oldUrl.split('.').pop() || 'mp3';
+    const newPhysicalName = generateV3Name(`${artist} - ${title}`, tags, ext);
+    const newRemotePath = `${S3_CONFIG.folderPrefix}${newPhysicalName}`;
 
-    for (let i = 0; i < response.Contents.length; i++) {
-      const item = response.Contents[i];
-      if (!item.Key) continue;
-      const keyLower = item.Key.toLowerCase();
-      if (!videoExtensions.some(ext => keyLower.endsWith(ext)) || keyLower.endsWith('/')) continue;
+    const fileResponse = await fetch(oldUrl);
+    const blob = await fileResponse.blob();
 
-      const fullPath = item.Key!;
-      const decodedFileName = cleanKey(fullPath, S3_CONFIG.videoFolderPrefix);
-      const id = item.ETag?.replace(/"/g, '') || Math.random().toString(36).substring(7);
-      
-      const displayName = await getVirtualName(id, decodedFileName.replace(/\.[^/.]+$/, ""));
-      
-      const encodedPath = fullPath.split('/').map(segment => encodeURIComponent(segment)).join('/');
-      const publicUrl = `https://${getProjectRef()}.supabase.co/storage/v1/object/public/${S3_CONFIG.bucketName}/${encodedPath}`;
-      
-      videos.push({
-        id,
-        name: displayName,
-        artist: 'CloudVideo',
-        url: publicUrl,
-        coverUrl: DEFAULT_COVERS[(i + 2) % DEFAULT_COVERS.length],
-        lastModified: item.LastModified
+    const formData = new FormData();
+    formData.append('file', new File([blob], newPhysicalName));
+    formData.append('path', newRemotePath);
+
+    const uploadResponse = await fetch(`${EDGE_FUNCTION_CONFIG.baseUrl}/wangyiyun-storage/upload`, {
+      method: 'POST',
+      headers: { 'x-dev-key': EDGE_FUNCTION_CONFIG.devKey },
+      body: formData
+    });
+
+    if (uploadResponse.ok) {
+      await fetch(`${EDGE_FUNCTION_CONFIG.baseUrl}/wangyiyun-storage/delete`, {
+        method: 'DELETE',
+        headers: { 
+          'x-dev-key': EDGE_FUNCTION_CONFIG.devKey,
+          'Content-Type': 'application/json' 
+        },
+        body: JSON.stringify({ path: oldKey })
       });
+      return true;
     }
-    return videos;
+    return false;
   } catch (error) {
-    console.error("fetchVideos Error:", error);
-    return [];
+    return false;
   }
 };
 
 export const deleteFile = async (path: string): Promise<boolean> => {
   try {
-    const response = await fetch(`${EDGE_FUNCTION_CONFIG.baseUrl}/wangyiyun/delete`, {
+    const response = await fetch(`${EDGE_FUNCTION_CONFIG.baseUrl}/wangyiyun-storage/delete`, {
       method: 'DELETE',
       headers: {
         'x-dev-key': EDGE_FUNCTION_CONFIG.devKey,
@@ -226,51 +194,52 @@ export const deleteFile = async (path: string): Promise<boolean> => {
   }
 };
 
-export const uploadFile = (
-  file: File | Blob, 
-  fileName: string, 
-  folder: string,
-  onProgress?: (percent: number) => void
-): Promise<boolean> => {
-  return new Promise((resolve) => {
-    const normalizedFolder = folder.endsWith('/') ? folder : folder + '/';
-    const remotePath = `${normalizedFolder}${fileName}`;
-    const formData = new FormData();
-    const fileToUpload = file instanceof File ? file : new File([file], fileName, { type: file.type || 'application/octet-stream' });
-    formData.append('file', fileToUpload);
-    formData.append('path', remotePath);
-    const xhr = new XMLHttpRequest();
-    xhr.open('POST', `${EDGE_FUNCTION_CONFIG.baseUrl}/wangyiyun/upload`, true);
-    xhr.setRequestHeader('x-dev-key', EDGE_FUNCTION_CONFIG.devKey);
-    if (onProgress && xhr.upload) {
-      xhr.upload.onprogress = (e) => {
-        if (e.lengthComputable) {
-          const percent = Math.round((e.loaded / e.total) * 100);
-          onProgress(percent);
-        }
-      };
-    }
-    xhr.onload = () => resolve(xhr.status >= 200 && xhr.status < 300);
-    xhr.onerror = () => resolve(false);
-    xhr.send(formData);
-  });
+export const deleteSong = deleteFile;
+
+export const downloadVideo = async (video: Video): Promise<void> => {
+  try {
+    const response = await fetch(video.url);
+    const blob = await response.blob();
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = video.name;
+    document.body.appendChild(a);
+    a.click();
+    window.URL.revokeObjectURL(url);
+    document.body.removeChild(a);
+  } catch (error) {
+    console.error("Download failed:", error);
+  }
 };
 
-export const uploadSong = (file: File | Blob, fileName: string, onProgress?: (p: number) => void) => 
-  uploadFile(file, fileName, S3_CONFIG.folderPrefix, onProgress);
-
-export const renameFile = async (oldUrl: string, newFileName: string, folder: string): Promise<boolean> => {
+export const renameFile = async (oldUrl: string, newFileName: string, folderPrefix: string): Promise<boolean> => {
   try {
     const urlParts = oldUrl.split('/');
     const bucketIndex = urlParts.indexOf(S3_CONFIG.bucketName);
-    if (bucketIndex === -1) throw new Error("Bucket error");
+    if (bucketIndex === -1) return false;
     const encodedOldKey = urlParts.slice(bucketIndex + 1).join('/');
     const oldKey = decodeURIComponent(encodedOldKey);
+    const newRemotePath = `${folderPrefix}${newFileName}`;
     const fileResponse = await fetch(oldUrl);
     const blob = await fileResponse.blob();
-    const uploadSuccess = await uploadFile(blob, newFileName, folder);
-    if (uploadSuccess) {
-      await deleteFile(oldKey);
+    const formData = new FormData();
+    formData.append('file', new File([blob], newFileName));
+    formData.append('path', newRemotePath);
+    const uploadResponse = await fetch(`${EDGE_FUNCTION_CONFIG.baseUrl}/wangyiyun-storage/upload`, {
+      method: 'POST',
+      headers: { 'x-dev-key': EDGE_FUNCTION_CONFIG.devKey },
+      body: formData
+    });
+    if (uploadResponse.ok) {
+      await fetch(`${EDGE_FUNCTION_CONFIG.baseUrl}/wangyiyun-storage/delete`, {
+        method: 'DELETE',
+        headers: { 
+          'x-dev-key': EDGE_FUNCTION_CONFIG.devKey,
+          'Content-Type': 'application/json' 
+        },
+        body: JSON.stringify({ path: oldKey })
+      });
       return true;
     }
     return false;
@@ -279,28 +248,44 @@ export const renameFile = async (oldUrl: string, newFileName: string, folder: st
   }
 };
 
-export const renameSong = (oldUrl: string, artist: string, title: string) => {
-  const extension = oldUrl.split('.').pop() || 'mp3';
-  return renameFile(oldUrl, `${artist} - ${title}.${extension}`, S3_CONFIG.folderPrefix);
+export const getCachedMediaUrl = async (id: string, remoteUrl: string): Promise<string> => {
+  return remoteUrl;
 };
 
-export const deleteSong = (path: string) => deleteFile(path);
-
-export const downloadVideo = async (video: Video) => {
+export const fetchVideos = async (): Promise<Video[]> => {
   try {
-    const response = await fetch(video.url);
-    const blob = await response.blob();
-    const downloadUrl = window.URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = downloadUrl;
-    link.download = `${video.name}.${video.url.split('.').pop() || 'mp4'}`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    window.URL.revokeObjectURL(downloadUrl);
-    return true;
+    const command = new ListObjectsV2Command({
+      Bucket: S3_CONFIG.bucketName,
+      Prefix: S3_CONFIG.videoFolderPrefix || undefined,
+    });
+    const response = await client.send(command);
+    if (!response.Contents) return [];
+    
+    const videoExtensions = ['.mp4', '.mov', '.webm', '.mkv'];
+    const videos: Video[] = [];
+
+    for (let i = 0; i < response.Contents.length; i++) {
+      const item = response.Contents[i];
+      if (!item.Key) continue;
+      const keyLower = item.Key.toLowerCase();
+      if (!videoExtensions.some(ext => keyLower.endsWith(ext)) || keyLower.endsWith('/')) continue;
+      const fullPath = item.Key!;
+      const physicalFileName = fullPath.substring((S3_CONFIG.videoFolderPrefix || "").length).replace(/^\//, "");
+      const id = item.ETag?.replace(/"/g, '') || fullPath;
+      const { name } = getVirtualMetadata(physicalFileName);
+      const encodedPath = fullPath.split('/').map(segment => encodeURIComponent(segment)).join('/');
+      const publicUrl = `https://zlbemopcgjohrnyyiwvs.supabase.co/storage/v1/object/public/${S3_CONFIG.bucketName}/${encodedPath}`;
+      videos.push({
+        id,
+        name: name,
+        artist: 'CloudVideo',
+        url: publicUrl,
+        coverUrl: DEFAULT_COVERS[i % DEFAULT_COVERS.length],
+        lastModified: item.LastModified
+      });
+    }
+    return videos;
   } catch (error) {
-    console.error("Download failed:", error);
-    return false;
+    return [];
   }
 };
