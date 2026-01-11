@@ -1,24 +1,30 @@
 
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, Suspense, lazy } from 'react';
 import { Song, Video, ViewMode, PlaybackMode, AppNotification, NotificationType } from './types';
 import { fetchSongs, fetchVideos, getCachedMediaUrl } from './services/s3Service';
-import { setToken } from './services/discoveryService';
 import MusicPlayer from './components/MusicPlayer';
-import MusicManager from './components/MusicManager';
-import VideoSection from './components/VideoSection';
-import ApiDocs from './components/ApiDocs';
-import SongDetails from './components/SongDetails';
-import VideoDetails from './components/VideoDetails';
-import Settings from './components/Settings';
-import CacheSpace from './components/CacheSpace';
-import Discovery from './components/Discovery';
 import ErrorNotification from './components/ErrorNotification';
 
+// 动态导入视图组件以优化包大小并解决块大小警告
+const Discovery = lazy(() => import('./components/Discovery'));
+const MusicManager = lazy(() => import('./components/MusicManager'));
+const VideoSection = lazy(() => import('./components/VideoSection'));
+const ApiDocs = lazy(() => import('./components/ApiDocs'));
+const SongDetails = lazy(() => import('./components/SongDetails'));
+const VideoDetails = lazy(() => import('./components/VideoDetails'));
+const Settings = lazy(() => import('./components/Settings'));
+const CacheSpace = lazy(() => import('./components/CacheSpace'));
+
+const AuroraLoader = () => (
+  <div className="flex-1 flex flex-col items-center justify-center space-y-8 animate-pulse">
+    <div className="w-12 h-12 border-2 border-white/5 border-t-indigo-500 rounded-full animate-spin"></div>
+    <p className="font-black text-[8px] uppercase tracking-[1em] text-white/20">数据维度加载中...</p>
+  </div>
+);
+
 const Logo: React.FC<{ isPlaying?: boolean }> = ({ isPlaying }) => (
-  <div className={`relative w-16 h-16 flex items-center justify-center transition-all duration-1000 ${isPlaying ? 'scale-110' : 'scale-100'}`}>
-    {/* 极光发光底座 */}
+  <div className={`relative w-12 h-12 md:w-16 md:h-16 flex items-center justify-center transition-all duration-1000 ${isPlaying ? 'scale-110' : 'scale-100'}`}>
     <div className={`absolute inset-0 bg-gradient-to-br from-indigo-600/40 via-purple-600/40 to-pink-600/40 blur-xl rounded-full transition-opacity duration-1000 ${isPlaying ? 'opacity-100' : 'opacity-40'}`}></div>
-    
     <svg viewBox="0 0 100 100" className="w-full h-full relative z-10 drop-shadow-[0_0_10px_rgba(139,92,246,0.5)]">
       <defs>
         <linearGradient id="logo-grad" x1="0%" y1="0%" x2="100%" y2="100%">
@@ -27,11 +33,8 @@ const Logo: React.FC<{ isPlaying?: boolean }> = ({ isPlaying }) => (
           <stop offset="100%" stopColor="#ec4899" />
         </linearGradient>
       </defs>
-      {/* 音乐波动环 */}
       <circle cx="70" cy="50" r="22" fill="none" stroke="url(#logo-grad)" strokeWidth="6" className={isPlaying ? 'animate-[pulse_2s_infinite]' : ''} />
       <path d="M70 35 L70 65 M78 40 L78 60 M62 40 L62 60" stroke="url(#logo-grad)" strokeWidth="2" strokeLinecap="round" className={isPlaying ? 'animate-[dj-bar_0.6s_infinite]' : ''} />
-      
-      {/* 核心高音谱号 */}
       <path 
         d="M45 85 C40 85 35 80 35 75 C35 68 45 62 45 50 C45 35 30 25 35 15 C38 10 48 10 50 20 L50 80 C50 88 45 92 40 92 C35 92 30 88 30 82" 
         fill="none" 
@@ -180,9 +183,10 @@ const App: React.FC = () => {
   ];
 
   return (
-    <div className={`flex flex-col md:flex-row h-screen w-screen overflow-hidden p-3 md:p-6 gap-3 md:gap-8 bg-transparent text-white transition-all duration-1000 ${isUIHidden ? 'opacity-20' : 'opacity-100'}`}>
+    <div className={`flex flex-col md:flex-row h-screen w-screen overflow-hidden p-2 md:p-6 gap-2 md:gap-8 bg-transparent text-white transition-all duration-1000 ${isUIHidden ? 'opacity-20' : 'opacity-100'}`}>
       <ErrorNotification notifications={notifications} onDismiss={(id) => setNotifications(prev => prev.filter(n => n.id !== id))} />
       
+      {/* 桌面端导航 */}
       <nav className={`hidden md:flex w-72 h-full glass-dark-morphism rounded-[3.5rem] flex-col py-12 px-6 z-[100] transition-all duration-700 ${isUIHidden ? '-translate-x-[110%]' : 'translate-x-0'}`}>
         <div className="mb-16 px-2 flex items-center space-x-5">
           <Logo isPlaying={isPlaying} />
@@ -215,7 +219,24 @@ const App: React.FC = () => {
         </div>
       </nav>
 
-      <main className={`flex-1 glass-dark-morphism rounded-[3rem] md:rounded-[4.5rem] relative overflow-hidden flex flex-col transition-all duration-1000 mb-20 md:mb-0 border border-white/5 shadow-2xl ${isUIHidden ? 'scale-95 blur-sm brightness-50' : 'scale-100'}`}>
+      {/* 移动端底部导航 */}
+      <nav className="md:hidden fixed bottom-4 left-4 right-4 h-20 glass-dark-morphism rounded-[2.5rem] flex items-center justify-around px-6 z-[500] border border-white/10 shadow-3xl">
+         {menuItems.slice(0, 4).map(item => (
+            <button 
+              key={item.id} onClick={() => setCurrentView(item.id)}
+              className={`flex flex-col items-center justify-center space-y-1 transition-all ${currentView === item.id ? 'text-indigo-400 scale-110' : 'text-white/30'}`}
+            >
+               <i className={`fa-solid ${item.icon} text-lg`}></i>
+               <span className="text-[7px] font-black uppercase tracking-tighter">{item.label}</span>
+            </button>
+         ))}
+         <button onClick={() => setCurrentView(ViewMode.SETTINGS)} className={`flex flex-col items-center justify-center space-y-1 transition-all ${currentView === ViewMode.SETTINGS ? 'text-indigo-400 scale-110' : 'text-white/30'}`}>
+            <i className="fa-solid fa-sliders text-lg"></i>
+            <span className="text-[7px] font-black uppercase tracking-tighter">设置</span>
+         </button>
+      </nav>
+
+      <main className={`flex-1 glass-dark-morphism rounded-[2.5rem] md:rounded-[4.5rem] relative overflow-hidden flex flex-col transition-all duration-1000 pb-24 md:pb-0 border border-white/5 shadow-2xl ${isUIHidden ? 'scale-95 blur-sm brightness-50' : 'scale-100'}`}>
         {isLoading ? (
           <div className="flex-1 flex flex-col items-center justify-center space-y-8">
             <div className="w-16 h-16 border-2 border-white/10 border-t-indigo-500 rounded-full animate-spin shadow-[0_0_40px_rgba(99,102,241,0.2)]"></div>
@@ -223,22 +244,24 @@ const App: React.FC = () => {
           </div>
         ) : (
           <div className="flex-1 overflow-hidden h-full">
-            {currentView === ViewMode.PLAYER && (
-              <MusicPlayer 
-                songs={songs} currentIndex={currentIndex} onIndexChange={setCurrentIndex}
-                isPlaying={isPlaying} onTogglePlay={handleTogglePlay}
-                currentTime={currentTime} duration={duration} onSeek={(t) => { if(audioRef.current) audioRef.current.currentTime = t; }}
-                audioRef={audioRef} playbackMode={playbackMode} onModeChange={setPlaybackMode}
-              />
-            )}
-            {currentView === ViewMode.DISCOVERY && <Discovery onPlaySong={(s) => { const exists = songs.findIndex(x => x.id === s.id); if(exists !== -1) setCurrentIndex(exists); else { setSongs(p => [s, ...p]); setCurrentIndex(0); } setCurrentView(ViewMode.PLAYER); setIsPlaying(false); }} onNotify={pushNotification} />}
-            {currentView === ViewMode.MANAGER && <MusicManager songs={songs} videos={videos} onRefresh={loadResources} onNotify={pushNotification} onViewDetails={(s) => { setSelectedSong(s); setCurrentView(ViewMode.SONG_DETAILS); }} onViewVideoDetails={(v) => { setSelectedVideo(v); setCurrentView(ViewMode.VIDEO_DETAILS); }} />}
-            {currentView === ViewMode.VIDEO && <VideoSection shared={isSharedMode} onPlayVideo={() => audioRef.current?.pause()} onNotify={pushNotification} onViewDetails={(v) => { setSelectedVideo(v); setCurrentView(ViewMode.VIDEO_DETAILS); }} />}
-            {currentView === ViewMode.API_DOCS && <ApiDocs />}
-            {currentView === ViewMode.SETTINGS && <Settings isHighContrast={isHighContrast} onToggleContrast={() => setIsHighContrast(!isHighContrast)} brightness={brightness} onBrightnessChange={setBrightness} hotkeySettings={hotkeySettings} onHotkeyChange={setHotkeySettings} />}
-            {currentView === ViewMode.CACHE_SPACE && <CacheSpace />}
-            {currentView === ViewMode.SONG_DETAILS && selectedSong && <SongDetails song={selectedSong} onBack={() => setCurrentView(ViewMode.MANAGER)} onUpdate={() => loadResources()} onNotify={pushNotification} />}
-            {currentView === ViewMode.VIDEO_DETAILS && selectedVideo && <VideoDetails video={selectedVideo} onBack={() => setCurrentView(ViewMode.VIDEO)} onUpdate={() => loadResources()} onNotify={pushNotification} />}
+            <Suspense fallback={<AuroraLoader />}>
+              {currentView === ViewMode.PLAYER && (
+                <MusicPlayer 
+                  songs={songs} currentIndex={currentIndex} onIndexChange={setCurrentIndex}
+                  isPlaying={isPlaying} onTogglePlay={handleTogglePlay}
+                  currentTime={currentTime} duration={duration} onSeek={(t) => { if(audioRef.current) audioRef.current.currentTime = t; }}
+                  audioRef={audioRef} playbackMode={playbackMode} onModeChange={setPlaybackMode}
+                />
+              )}
+              {currentView === ViewMode.DISCOVERY && <Discovery onPlaySong={(s) => { const exists = songs.findIndex(x => x.id === s.id); if(exists !== -1) setCurrentIndex(exists); else { setSongs(p => [s, ...p]); setCurrentIndex(0); } setCurrentView(ViewMode.PLAYER); setIsPlaying(false); }} onNotify={pushNotification} />}
+              {currentView === ViewMode.MANAGER && <MusicManager songs={songs} videos={videos} onRefresh={loadResources} onNotify={pushNotification} onViewDetails={(s) => { setSelectedSong(s); setCurrentView(ViewMode.SONG_DETAILS); }} onViewVideoDetails={(v) => { setSelectedVideo(v); setCurrentView(ViewMode.VIDEO_DETAILS); }} />}
+              {currentView === ViewMode.VIDEO && <VideoSection shared={isSharedMode} onPlayVideo={() => audioRef.current?.pause()} onNotify={pushNotification} onViewDetails={(v) => { setSelectedVideo(v); setCurrentView(ViewMode.VIDEO_DETAILS); }} />}
+              {currentView === ViewMode.API_DOCS && <ApiDocs />}
+              {currentView === ViewMode.SETTINGS && <Settings isHighContrast={isHighContrast} onToggleContrast={() => setIsHighContrast(!isHighContrast)} brightness={brightness} onBrightnessChange={setBrightness} hotkeySettings={hotkeySettings} onHotkeyChange={setHotkeySettings} />}
+              {currentView === ViewMode.CACHE_SPACE && <CacheSpace />}
+              {currentView === ViewMode.SONG_DETAILS && selectedSong && <SongDetails song={selectedSong} onBack={() => setCurrentView(ViewMode.MANAGER)} onUpdate={() => loadResources()} onNotify={pushNotification} />}
+              {currentView === ViewMode.VIDEO_DETAILS && selectedVideo && <VideoDetails video={selectedVideo} onBack={() => setCurrentView(ViewMode.VIDEO)} onUpdate={() => loadResources()} onNotify={pushNotification} />}
+            </Suspense>
           </div>
         )}
       </main>
