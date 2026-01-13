@@ -12,7 +12,9 @@
     "react": "19.0.0",
     "react-dom": "19.0.0",
     "@aws-sdk/client-s3": "3.712.0",
-    "@google/genai": "^1.35.0"
+    "@google/genai": "^1.35.0",
+    "@vitejs/plugin-react": "^5.1.2",
+    "vite": "^7.3.1"
   },
   "devDependencies": {
     "@types/node": "^22.14.0",

@@ -1,49 +1,34 @@
 
 import React, { useState, useEffect, useRef, useCallback, Suspense, lazy } from 'react';
 import { Song, Video, ViewMode, PlaybackMode, AppNotification, NotificationType } from './types';
-import { fetchSongs, fetchVideos, getCachedMediaUrl } from './services/s3Service';
+import { fetchSongs, fetchVideos } from './services/s3Service';
 import MusicPlayer from './components/MusicPlayer';
 import ErrorNotification from './components/ErrorNotification';
+import GlobalSearchModal from './components/GlobalSearchModal';
 
-// 动态导入视图组件以优化包大小并解决块大小警告
 const Discovery = lazy(() => import('./components/Discovery'));
 const MusicManager = lazy(() => import('./components/MusicManager'));
 const VideoSection = lazy(() => import('./components/VideoSection'));
 const ApiDocs = lazy(() => import('./components/ApiDocs'));
 const SongDetails = lazy(() => import('./components/SongDetails'));
-const VideoDetails = lazy(() => import('./components/VideoDetails'));
 const Settings = lazy(() => import('./components/Settings'));
-const CacheSpace = lazy(() => import('./components/CacheSpace'));
 
 const AuroraLoader = () => (
   <div className="flex-1 flex flex-col items-center justify-center space-y-8 animate-pulse">
-    <div className="w-12 h-12 border-2 border-white/5 border-t-indigo-500 rounded-full animate-spin"></div>
-    <p className="font-black text-[8px] uppercase tracking-[1em] text-white/20">数据维度加载中...</p>
+    <div className="w-10 h-10 border-2 border-white/20 border-t-red-500 rounded-full animate-spin"></div>
+    <p className="font-bold text-xs uppercase tracking-widest text-white/60 italic">正在接收信号...</p>
   </div>
 );
 
 const Logo: React.FC<{ isPlaying?: boolean }> = ({ isPlaying }) => (
-  <div className={`relative w-12 h-12 md:w-16 md:h-16 flex items-center justify-center transition-all duration-1000 ${isPlaying ? 'scale-110' : 'scale-100'}`}>
-    <div className={`absolute inset-0 bg-gradient-to-br from-indigo-600/40 via-purple-600/40 to-pink-600/40 blur-xl rounded-full transition-opacity duration-1000 ${isPlaying ? 'opacity-100' : 'opacity-40'}`}></div>
-    <svg viewBox="0 0 100 100" className="w-full h-full relative z-10 drop-shadow-[0_0_10px_rgba(139,92,246,0.5)]">
-      <defs>
-        <linearGradient id="logo-grad" x1="0%" y1="0%" x2="100%" y2="100%">
-          <stop offset="0%" stopColor="#6366f1" />
-          <stop offset="50%" stopColor="#a855f7" />
-          <stop offset="100%" stopColor="#ec4899" />
-        </linearGradient>
-      </defs>
-      <circle cx="70" cy="50" r="22" fill="none" stroke="url(#logo-grad)" strokeWidth="6" className={isPlaying ? 'animate-[pulse_2s_infinite]' : ''} />
-      <path d="M70 35 L70 65 M78 40 L78 60 M62 40 L62 60" stroke="url(#logo-grad)" strokeWidth="2" strokeLinecap="round" className={isPlaying ? 'animate-[dj-bar_0.6s_infinite]' : ''} />
-      <path 
-        d="M45 85 C40 85 35 80 35 75 C35 68 45 62 45 50 C45 35 30 25 35 15 C38 10 48 10 50 20 L50 80 C50 88 45 92 40 92 C35 92 30 88 30 82" 
-        fill="none" 
-        stroke="white" 
-        strokeWidth="5" 
-        strokeLinecap="round"
-        className="drop-shadow-[0_0_5px_rgba(255,255,255,0.8)]"
-      />
-    </svg>
+  <div className="relative group cursor-pointer">
+    <div className={`absolute inset-0 bg-red-600/40 blur-2xl rounded-full transition-all duration-[2000ms] ${isPlaying ? 'scale-125 opacity-60 animate-pulse' : 'scale-100 opacity-20'}`}></div>
+    <div className={`relative w-14 h-14 flex items-center justify-center transition-all duration-700 ${isPlaying ? 'scale-110' : 'scale-100'}`}>
+      <svg viewBox="0 0 100 100" className="w-full h-full drop-shadow-lg">
+        <circle cx="50" cy="50" r="45" fill="#000" stroke="#E60026" strokeWidth="2" />
+        <circle cx="50" cy="50" r="15" fill="#E60026" className={isPlaying ? 'animate-pulse' : ''} />
+      </svg>
+    </div>
   </div>
 );
 
@@ -53,224 +38,181 @@ const App: React.FC = () => {
   const [videos, setVideos] = useState<Video[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
+  const [showIntro, setShowIntro] = useState(true);
   const [isSharedMode, setIsSharedMode] = useState(false);
   const [selectedSong, setSelectedSong] = useState<Song | null>(null);
-  const [selectedVideo, setSelectedVideo] = useState<Video | null>(null);
+  const [isSearchOpen, setIsSearchOpen] = useState(false);
 
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
+  const [volume, setVolume] = useState(0.8);
   const [playbackMode, setPlaybackMode] = useState<PlaybackMode>(PlaybackMode.SEQUENCE);
   const [activeAudioUrl, setActiveAudioUrl] = useState<string>('');
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
-  const [isUIHidden, setIsUIHidden] = useState(false);
-  const [isHighContrast, setIsHighContrast] = useState(() => localStorage.getItem('theme_high_contrast') === 'true');
-  const [brightness, setBrightness] = useState(() => parseFloat(localStorage.getItem('theme_brightness') || '1'));
-
-  const [hotkeySettings, setHotkeySettings] = useState(() => {
-    const saved = localStorage.getItem('hotkey_settings');
-    return saved ? JSON.parse(saved) : { master: true, media: true, nav: true, visual: true };
-  });
 
   const audioRef = useRef<HTMLAudioElement>(null);
 
   const pushNotification = useCallback((message: string, type: NotificationType = 'error') => {
     const id = Math.random().toString(36).substring(7);
     setNotifications(prev => [...prev, { id, message, type }]);
-    setTimeout(() => {
-      setNotifications(prev => prev.filter(n => n.id !== id));
-    }, 4000);
+    setTimeout(() => setNotifications(prev => prev.filter(n => n.id !== id)), 4000);
   }, []);
-
-  useEffect(() => {
-    localStorage.setItem('hotkey_settings', JSON.stringify(hotkeySettings));
-  }, [hotkeySettings]);
-
-  useEffect(() => {
-    if (isHighContrast) document.body.classList.add('high-contrast');
-    else document.body.classList.remove('high-contrast');
-    localStorage.setItem('theme_high_contrast', String(isHighContrast));
-  }, [isHighContrast]);
-
-  useEffect(() => {
-    document.documentElement.style.setProperty('--text-brightness', brightness.toString());
-    localStorage.setItem('theme_brightness', brightness.toString());
-  }, [brightness]);
-
-  const handleTogglePlay = useCallback(async () => {
-    if (!audioRef.current) return;
-    if (isPlaying) {
-      audioRef.current.pause();
-      setIsPlaying(false);
-    } else {
-      try {
-        await audioRef.current.play();
-        setIsPlaying(true);
-      } catch (err) {
-        pushNotification("播放失败，请检查网络连接", "error");
-      }
-    }
-  }, [isPlaying, pushNotification]);
-
-  const nextSong = useCallback(() => {
-    if (songs.length === 0) return;
-    setCurrentIndex(prev => (playbackMode === PlaybackMode.SHUFFLE ? Math.floor(Math.random() * songs.length) : (prev + 1) % songs.length));
-  }, [songs.length, playbackMode]);
-
-  const prevSong = useCallback(() => {
-    if (songs.length === 0) return;
-    setCurrentIndex(prev => (prev - 1 + songs.length) % songs.length);
-  }, [songs.length]);
-
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (!hotkeySettings.master || ['INPUT', 'TEXTAREA'].includes((e.target as HTMLElement).tagName)) return;
-      const isCmdOrCtrl = e.metaKey || e.ctrlKey;
-      if (hotkeySettings.media) {
-        if (e.code === 'Space') { e.preventDefault(); handleTogglePlay(); }
-        if (isCmdOrCtrl && e.code === 'ArrowRight') { e.preventDefault(); nextSong(); }
-        if (isCmdOrCtrl && e.code === 'ArrowLeft') { e.preventDefault(); prevSong(); }
-        if (e.code === 'ArrowUp') { e.preventDefault(); if (audioRef.current) audioRef.current.volume = Math.min(1, audioRef.current.volume + 0.05); }
-        if (e.code === 'ArrowDown') { e.preventDefault(); if (audioRef.current) audioRef.current.volume = Math.max(0, audioRef.current.volume - 0.05); }
-      }
-      if (hotkeySettings.nav) {
-        if (isCmdOrCtrl && e.code === 'KeyK') { e.preventDefault(); setCurrentView(ViewMode.DISCOVERY); }
-        if (e.code === 'KeyM') {
-          e.preventDefault();
-          const modes = [PlaybackMode.SEQUENCE, PlaybackMode.SHUFFLE, PlaybackMode.REPEAT_ONE];
-          setPlaybackMode(modes[(modes.indexOf(playbackMode) + 1) % modes.length]);
-        }
-      }
-      if (hotkeySettings.visual && e.code === 'KeyH') { e.preventDefault(); setIsUIHidden(prev => !prev); }
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [handleTogglePlay, nextSong, prevSong, playbackMode, isUIHidden, hotkeySettings]);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     if (params.get('mode') === 'shared') setIsSharedMode(true);
     loadResources();
+    const timer = setTimeout(() => setShowIntro(false), 4500);
+    
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'k') { e.preventDefault(); setIsSearchOpen(true); }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => { clearTimeout(timer); window.removeEventListener('keydown', handleKeyDown); };
   }, []);
 
   useEffect(() => {
     if (songs[currentIndex]) {
-      const song = songs[currentIndex];
-      if (song.isExternal) setActiveAudioUrl(song.url);
-      else getCachedMediaUrl(song.id, song.url).then(setActiveAudioUrl).catch(() => setActiveAudioUrl(song.url));
+      setActiveAudioUrl(songs[currentIndex].url);
     }
   }, [currentIndex, songs]);
 
+  useEffect(() => {
+    if (audioRef.current) {
+      audioRef.current.volume = volume;
+    }
+  }, [volume]);
+
   const loadResources = async () => {
     setIsLoading(true);
+    setLoadError(false);
     try {
       const [fs, fv] = await Promise.all([fetchSongs(), fetchVideos()]);
       setSongs(fs); setVideos(fv);
-    } catch (e) { pushNotification("云端链路异常", "error"); }
+      if (fs.length === 0 && fv.length === 0) setLoadError(true);
+    } catch (e) { 
+      setLoadError(true);
+      pushNotification("云端资源加载失败，请检查网络", "error"); 
+    }
     setIsLoading(false);
   };
 
+  const handleTogglePlay = useCallback(async () => {
+    if (!audioRef.current) return;
+    if (isPlaying) { audioRef.current.pause(); setIsPlaying(false); }
+    else { try { await audioRef.current.play(); setIsPlaying(true); } catch (err) { pushNotification("播放器启动失败", "error"); } }
+  }, [isPlaying, pushNotification]);
+
   const menuItems = [
     { id: ViewMode.PLAYER, icon: 'fa-play', label: '正在播放' },
-    { id: ViewMode.DISCOVERY, icon: 'fa-earth-asia', label: '发现音乐' },
-    { id: ViewMode.VIDEO, icon: 'fa-clapperboard', label: '视频空间' },
-    ...(isSharedMode ? [] : [
-      { id: ViewMode.MANAGER, icon: 'fa-shapes', label: '我的音乐库' },
-      { id: ViewMode.CACHE_SPACE, icon: 'fa-database', label: '缓存管理' }
-    ]),
-    { id: ViewMode.API_DOCS, icon: 'fa-paper-plane', label: '分享链接' },
-    { id: ViewMode.SETTINGS, icon: 'fa-sliders', label: '设置' }
+    { id: ViewMode.DISCOVERY, icon: 'fa-earth-asia', label: '搜索全网音乐' },
+    { id: ViewMode.VIDEO, icon: 'fa-clapperboard', label: '精彩视频' },
+    ...(isSharedMode ? [] : [{ id: ViewMode.MANAGER, icon: 'fa-shapes', label: '我的音乐库' }]),
+    { id: ViewMode.API_DOCS, icon: 'fa-paper-plane', label: '链接分享' },
+    { id: ViewMode.SETTINGS, icon: 'fa-sliders', label: '电台设置' }
   ];
 
   return (
-    <div className={`flex flex-col md:flex-row h-screen w-screen overflow-hidden p-2 md:p-6 gap-2 md:gap-8 bg-transparent text-white transition-all duration-1000 ${isUIHidden ? 'opacity-20' : 'opacity-100'}`}>
-      <ErrorNotification notifications={notifications} onDismiss={(id) => setNotifications(prev => prev.filter(n => n.id !== id))} />
+    <div className="flex flex-col md:flex-row h-screen w-screen overflow-hidden p-2 md:p-6 gap-2 md:gap-4 bg-transparent text-white">
       
-      {/* 桌面端导航 */}
-      <nav className={`hidden md:flex w-72 h-full glass-dark-morphism rounded-[3.5rem] flex-col py-12 px-6 z-[100] transition-all duration-700 ${isUIHidden ? '-translate-x-[110%]' : 'translate-x-0'}`}>
-        <div className="mb-16 px-2 flex items-center space-x-5">
-          <Logo isPlaying={isPlaying} />
-          <div className="flex flex-col">
-            <h1 className="text-2xl font-black tracking-tighter italic leading-none text-white drop-shadow-[0_2px_10px_rgba(255,255,255,0.3)]">网忆云</h1>
-            <div className="flex items-center space-x-2 mt-1.5">
-               <span className="w-4 h-[1px] bg-indigo-500"></span>
-               <p className="text-[9px] font-black text-indigo-400 uppercase tracking-[0.3em] italic">子夜回响</p>
+      {showIntro && (
+        <div className="fixed inset-0 z-[10000] bg-black flex flex-col items-center justify-center animate-out fade-out duration-1000 delay-[3500ms]">
+          <div className="max-w-xl px-12 space-y-10 text-center animate-in zoom-in-95 duration-[1500ms]">
+            <p className="text-xs font-black uppercase tracking-[1em] text-red-500 mb-4">子夜电台</p>
+            <p className="text-2xl md:text-3xl font-serif-quote font-black italic tracking-tighter leading-relaxed text-white">
+              “我这辈子得到了很多空头支票，小时候爸妈答应买的玩具，恋人口中的永远。”
+            </p>
+            <div className="flex flex-col items-center space-y-3 opacity-80">
+               <div className="w-16 h-[2px] bg-red-600"></div>
+               <span className="text-[10px] font-black uppercase tracking-widest text-red-200">正在进入港湾...</span>
             </div>
           </div>
         </div>
+      )}
 
-        <div className="flex-1 space-y-3 overflow-y-auto no-scrollbar">
+      <ErrorNotification notifications={notifications} onDismiss={(id) => setNotifications(prev => prev.filter(n => n.id !== id))} />
+      
+      {isSearchOpen && (
+        <GlobalSearchModal 
+          songs={songs} videos={videos} onClose={() => setIsSearchOpen(false)} 
+          onPlaySong={(song) => {
+            const idx = songs.findIndex(s => s.id === song.id);
+            if (idx !== -1) setCurrentIndex(idx);
+            setCurrentView(ViewMode.PLAYER); setIsSearchOpen(false);
+          }}
+          onPlayVideo={(video) => { setCurrentView(ViewMode.VIDEO); setIsSearchOpen(false); }}
+        />
+      )}
+
+      {/* 侧边导航 */}
+      <nav className="hidden md:flex w-64 h-full glass-dark-morphism rounded-[2.5rem] flex-col py-10 px-4 z-[100]">
+        <div className="mb-10 px-4 flex items-center space-x-4">
+          <Logo isPlaying={isPlaying} />
+          <div className="flex flex-col">
+            <h1 className="text-xl font-black tracking-tighter italic text-white">子夜电台</h1>
+            <p className="text-[10px] font-black text-red-500 uppercase tracking-widest italic">让遗憾有归宿</p>
+          </div>
+        </div>
+
+        <div className="flex-1 space-y-1.5 overflow-y-auto no-scrollbar">
           {menuItems.map(item => (
             <button 
-              key={item.id} onClick={() => setCurrentView(item.id)} 
-              className={`w-full flex items-center space-x-5 p-5 rounded-3xl transition-all duration-500 font-black text-[11px] ${currentView === item.id ? 'bg-white text-black shadow-2xl scale-105' : 'text-white/40 hover:bg-white/5 hover:text-white'}`}
+              key={item.id} onClick={() => setCurrentView(item.id as ViewMode)} 
+              className={`w-full flex items-center space-x-4 p-4 rounded-2xl transition-all duration-300 font-bold text-xs ${currentView === item.id ? 'bg-red-600 text-white shadow-lg' : 'text-white/70 hover:bg-white/10 hover:text-white'}`}
             >
-              <i className={`fa-solid ${item.icon} text-lg`}></i>
+              <i className={`fa-solid ${item.icon} text-base w-6`}></i>
               <span className="tracking-widest uppercase">{item.label}</span>
             </button>
           ))}
         </div>
-
-        <div className="mt-auto pt-10 px-2 text-center">
-           <div className="bg-white/5 rounded-[2.5rem] p-6 border border-white/5 group hover:border-indigo-500/30 transition-all">
-              <p className="text-[7px] font-black text-cyan-400 uppercase tracking-[0.5em] mb-3">System Online</p>
-              <span className="text-[10px] font-black text-white/60 tracking-widest italic group-hover:text-white transition-colors">极光链路同步中</span>
-           </div>
-        </div>
       </nav>
 
-      {/* 移动端底部导航 */}
-      <nav className="md:hidden fixed bottom-4 left-4 right-4 h-20 glass-dark-morphism rounded-[2.5rem] flex items-center justify-around px-6 z-[500] border border-white/10 shadow-3xl">
-         {menuItems.slice(0, 4).map(item => (
-            <button 
-              key={item.id} onClick={() => setCurrentView(item.id)}
-              className={`flex flex-col items-center justify-center space-y-1 transition-all ${currentView === item.id ? 'text-indigo-400 scale-110' : 'text-white/30'}`}
-            >
-               <i className={`fa-solid ${item.icon} text-lg`}></i>
-               <span className="text-[7px] font-black uppercase tracking-tighter">{item.label}</span>
-            </button>
-         ))}
-         <button onClick={() => setCurrentView(ViewMode.SETTINGS)} className={`flex flex-col items-center justify-center space-y-1 transition-all ${currentView === ViewMode.SETTINGS ? 'text-indigo-400 scale-110' : 'text-white/30'}`}>
-            <i className="fa-solid fa-sliders text-lg"></i>
-            <span className="text-[7px] font-black uppercase tracking-tighter">设置</span>
-         </button>
-      </nav>
-
-      <main className={`flex-1 glass-dark-morphism rounded-[2.5rem] md:rounded-[4.5rem] relative overflow-hidden flex flex-col transition-all duration-1000 pb-24 md:pb-0 border border-white/5 shadow-2xl ${isUIHidden ? 'scale-95 blur-sm brightness-50' : 'scale-100'}`}>
-        {isLoading ? (
-          <div className="flex-1 flex flex-col items-center justify-center space-y-8">
-            <div className="w-16 h-16 border-2 border-white/10 border-t-indigo-500 rounded-full animate-spin shadow-[0_0_40px_rgba(99,102,241,0.2)]"></div>
-            <p className="font-black text-[9px] uppercase tracking-[0.8em] text-white/20 animate-pulse">映射极光节点中...</p>
-          </div>
-        ) : (
-          <div className="flex-1 overflow-hidden h-full">
-            <Suspense fallback={<AuroraLoader />}>
-              {currentView === ViewMode.PLAYER && (
-                <MusicPlayer 
-                  songs={songs} currentIndex={currentIndex} onIndexChange={setCurrentIndex}
-                  isPlaying={isPlaying} onTogglePlay={handleTogglePlay}
-                  currentTime={currentTime} duration={duration} onSeek={(t) => { if(audioRef.current) audioRef.current.currentTime = t; }}
-                  audioRef={audioRef} playbackMode={playbackMode} onModeChange={setPlaybackMode}
-                />
-              )}
-              {currentView === ViewMode.DISCOVERY && <Discovery onPlaySong={(s) => { const exists = songs.findIndex(x => x.id === s.id); if(exists !== -1) setCurrentIndex(exists); else { setSongs(p => [s, ...p]); setCurrentIndex(0); } setCurrentView(ViewMode.PLAYER); setIsPlaying(false); }} onNotify={pushNotification} />}
-              {currentView === ViewMode.MANAGER && <MusicManager songs={songs} videos={videos} onRefresh={loadResources} onNotify={pushNotification} onViewDetails={(s) => { setSelectedSong(s); setCurrentView(ViewMode.SONG_DETAILS); }} onViewVideoDetails={(v) => { setSelectedVideo(v); setCurrentView(ViewMode.VIDEO_DETAILS); }} />}
-              {currentView === ViewMode.VIDEO && <VideoSection shared={isSharedMode} onPlayVideo={() => audioRef.current?.pause()} onNotify={pushNotification} onViewDetails={(v) => { setSelectedVideo(v); setCurrentView(ViewMode.VIDEO_DETAILS); }} />}
-              {currentView === ViewMode.API_DOCS && <ApiDocs />}
-              {currentView === ViewMode.SETTINGS && <Settings isHighContrast={isHighContrast} onToggleContrast={() => setIsHighContrast(!isHighContrast)} brightness={brightness} onBrightnessChange={setBrightness} hotkeySettings={hotkeySettings} onHotkeyChange={setHotkeySettings} />}
-              {currentView === ViewMode.CACHE_SPACE && <CacheSpace />}
-              {currentView === ViewMode.SONG_DETAILS && selectedSong && <SongDetails song={selectedSong} onBack={() => setCurrentView(ViewMode.MANAGER)} onUpdate={() => loadResources()} onNotify={pushNotification} />}
-              {currentView === ViewMode.VIDEO_DETAILS && selectedVideo && <VideoDetails video={selectedVideo} onBack={() => setCurrentView(ViewMode.VIDEO)} onUpdate={() => loadResources()} onNotify={pushNotification} />}
-            </Suspense>
+      {/* 主播放区 */}
+      <main className="flex-1 glass-dark-morphism rounded-[2.5rem] relative overflow-hidden flex flex-col pb-24 md:pb-0 shadow-2xl">
+        {loadError && !isLoading && (
+          <div className="absolute inset-0 flex flex-col items-center justify-center p-12 text-center space-y-8 z-[90] bg-black/60 backdrop-blur-xl">
+             <i className="fa-solid fa-cloud-bolt text-5xl text-red-500"></i>
+             <div className="space-y-3">
+               <h3 className="text-xl font-black italic text-white">服务器连接超时</h3>
+               <p className="text-white/60 text-xs font-bold">目前无法连接到云端存储，请检查网络或刷新重试。</p>
+             </div>
+             <button onClick={loadResources} className="px-10 py-4 bg-white text-black rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-red-600 hover:text-white transition-all shadow-2xl active:scale-95">重新加载数据</button>
           </div>
         )}
+
+        <Suspense fallback={<AuroraLoader />}>
+          {currentView === ViewMode.PLAYER && (
+            <MusicPlayer 
+              songs={songs} currentIndex={currentIndex} onIndexChange={setCurrentIndex}
+              isPlaying={isPlaying} onTogglePlay={handleTogglePlay}
+              currentTime={currentTime} duration={duration} onSeek={(t) => audioRef.current && (audioRef.current.currentTime = t)}
+              audioRef={audioRef} playbackMode={playbackMode} onModeChange={setPlaybackMode}
+              volume={volume} onVolumeChange={setVolume}
+            />
+          )}
+          {currentView === ViewMode.DISCOVERY && <Discovery onPlaySong={(s) => { const exists = songs.findIndex(x => x.id === s.id); if(exists !== -1) setCurrentIndex(exists); else { setSongs(p => [s, ...p]); setCurrentIndex(0); } setCurrentView(ViewMode.PLAYER); setIsPlaying(false); }} onNotify={pushNotification} />}
+          {currentView === ViewMode.MANAGER && <MusicManager songs={songs} videos={videos} onRefresh={loadResources} onNotify={pushNotification} onViewDetails={(s) => { setSelectedSong(s); setCurrentView(ViewMode.SONG_DETAILS); }} onViewVideoDetails={() => {}} />}
+          {currentView === ViewMode.VIDEO && <VideoSection onPlayVideo={() => audioRef.current?.pause()} onNotify={pushNotification} />}
+          {currentView === ViewMode.API_DOCS && <ApiDocs />}
+          {currentView === ViewMode.SETTINGS && <Settings />}
+          {currentView === ViewMode.SONG_DETAILS && selectedSong && <SongDetails song={selectedSong} onBack={() => setCurrentView(ViewMode.MANAGER)} onUpdate={() => loadResources()} onNotify={pushNotification} />}
+        </Suspense>
       </main>
 
       <audio 
         ref={audioRef} src={activeAudioUrl} crossOrigin="anonymous"
         onTimeUpdate={(e) => setCurrentTime(e.currentTarget.currentTime)}
         onLoadedMetadata={(e) => setDuration(e.currentTarget.duration)}
-        onEnded={() => playbackMode === PlaybackMode.REPEAT_ONE ? (audioRef.current && (audioRef.current.currentTime = 0, audioRef.current.play())) : nextSong()}
+        onEnded={() => {
+          if (playbackMode === PlaybackMode.REPEAT_ONE) {
+            if(audioRef.current) audioRef.current.play();
+          } else {
+            const nextIdx = playbackMode === PlaybackMode.SHUFFLE ? Math.floor(Math.random() * songs.length) : (currentIndex + 1) % songs.length;
+            setCurrentIndex(nextIdx);
+          }
+        }}
         autoPlay={currentIndex !== 0 || isPlaying} 
       />
     </div>

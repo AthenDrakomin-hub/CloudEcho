@@ -28,17 +28,6 @@ const MusicManager: React.FC<MusicManagerProps> = ({
     { label: '孤独', color: 'cyan', query: '孤独' }
   ];
 
-  const allTags = useMemo(() => {
-    const tags = new Set<string>();
-    MOOD_TAGS.forEach(m => tags.add(m.label));
-    songs.forEach(s => s.tags?.forEach(t => {
-        if (t.includes('DJ')) tags.add('DJ 热歌');
-        else if (t.includes('emo') || t.includes('伤感')) tags.add('伤感');
-        else tags.add(t.startsWith('#') ? t.slice(1) : t);
-    }));
-    return Array.from(tags);
-  }, [songs]);
-
   const filteredItems = useMemo(() => {
     const base = activeTab === 'music' ? songs : videos;
     return base.filter(item => {
@@ -64,54 +53,54 @@ const MusicManager: React.FC<MusicManagerProps> = ({
   }, [activeTab, songs, videos, searchQuery, selectedTag]);
 
   return (
-    <div className="h-full flex flex-col p-4 md:p-6 overflow-hidden bg-transparent">
+    <div className="h-full flex flex-col p-4 md:p-8 overflow-hidden bg-transparent">
       
-      <header className="mb-4 md:mb-6 space-y-4">
-        <div className="flex flex-col lg:flex-row items-center justify-between gap-4">
-          <div className="flex items-center space-x-4">
-              <h2 className="text-xl md:text-2xl font-[900] text-white tracking-tighter italic aurora-text leading-none">音乐库</h2>
-              <div className="bg-white/5 p-0.5 rounded-lg flex border border-white/5 backdrop-blur-3xl">
+      <header className="mb-8 space-y-6">
+        <div className="flex flex-col lg:flex-row items-center justify-between gap-6">
+          <div className="flex items-center space-x-6">
+              <h2 className="text-2xl md:text-3xl font-[900] text-white tracking-tighter italic aurora-text leading-none">内容库管理</h2>
+              <div className="bg-white/10 p-1 rounded-xl flex border border-white/10 backdrop-blur-3xl">
                 <button 
                     onClick={() => {setActiveTab('music'); setSelectedTag('全部');}} 
-                    className={`px-4 py-1.5 rounded-md text-[8px] font-black uppercase transition-all duration-500 ${activeTab === 'music' ? 'bg-white shadow-md text-black' : 'text-white/30 hover:text-white'}`}
+                    className={`px-6 py-2 rounded-lg text-[10px] font-black uppercase transition-all duration-300 ${activeTab === 'music' ? 'bg-white shadow-xl text-black' : 'text-white/60 hover:text-white'}`}
                 >
-                    音频
+                    单曲音频
                 </button>
                 <button 
                     onClick={() => {setActiveTab('videos'); setSelectedTag('全部');}} 
-                    className={`px-4 py-1.5 rounded-md text-[8px] font-black uppercase transition-all duration-500 ${activeTab === 'videos' ? 'bg-white shadow-md text-black' : 'text-white/30 hover:text-white'}`}
+                    className={`px-6 py-2 rounded-lg text-[10px] font-black uppercase transition-all duration-300 ${activeTab === 'videos' ? 'bg-white shadow-xl text-black' : 'text-white/60 hover:text-white'}`}
                 >
-                    视频
+                    精选视频
                 </button>
               </div>
           </div>
 
-          <div className="flex items-center gap-2 w-full lg:w-auto">
-            <div className="relative flex-1 lg:w-56 group">
-              <i className="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-white/20 group-focus-within:text-indigo-400 transition-colors text-[9px]"></i>
+          <div className="flex items-center gap-3 w-full lg:w-auto">
+            <div className="relative flex-1 lg:w-64 group">
+              <i className="fa-solid fa-magnifying-glass absolute left-4 top-1/2 -translate-y-1/2 text-white/40 group-focus-within:text-indigo-400 transition-colors text-sm"></i>
               <input 
-                type="text" placeholder="快速定位..." 
-                className="w-full bg-white/5 border border-white/10 rounded-lg py-1.5 pl-9 pr-3 text-[9px] font-black text-white focus:bg-white/10 outline-none transition-all placeholder-white/10"
+                type="text" placeholder="快速过滤名称..." 
+                className="w-full bg-white/10 border border-white/20 rounded-xl py-3 pl-12 pr-4 text-xs font-black text-white focus:bg-white/20 outline-none transition-all placeholder-white/40"
                 value={searchQuery} onChange={e => setSearchQuery(e.target.value)}
               />
             </div>
             <button 
               onClick={() => onRefresh()}
-              className="w-8 h-8 bg-white/5 border border-white/10 rounded-lg flex items-center justify-center text-white/40 hover:text-white hover:bg-indigo-500 transition-all group"
+              className="w-12 h-12 bg-indigo-600 border border-indigo-400 rounded-xl flex items-center justify-center text-white shadow-lg hover:scale-105 active:scale-95 transition-all group"
             >
-              <i className="fa-solid fa-rotate group-hover:rotate-180 transition-transform duration-700 text-[10px]"></i>
+              <i className="fa-solid fa-rotate group-hover:rotate-180 transition-transform duration-700"></i>
             </button>
           </div>
         </div>
 
         {activeTab === 'music' && (
-          <div className="flex flex-wrap items-center gap-1.5 md:gap-2">
-            <span className="text-[7px] font-black text-indigo-400 uppercase tracking-widest italic mr-2">映射器:</span>
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-[9px] font-black text-indigo-300 uppercase tracking-widest italic mr-2">分类过滤:</span>
             {MOOD_TAGS.map(mood => (
               <button 
                 key={mood.label}
                 onClick={() => setSelectedTag(mood.label)}
-                className={`px-2.5 py-1 rounded-md text-[8px] font-black tracking-widest uppercase transition-all border ${selectedTag === mood.label ? 'bg-white text-black border-white shadow-sm scale-105' : 'bg-white/5 border-white/5 text-white/20 hover:text-white hover:border-white/20'}`}
+                className={`px-4 py-2 rounded-xl text-[10px] font-black tracking-widest uppercase transition-all border ${selectedTag === mood.label ? 'bg-indigo-500 text-white border-indigo-400 shadow-lg' : 'bg-white/5 border-white/10 text-white/60 hover:text-white hover:border-white/40'}`}
               >
                 {mood.label}
               </button>
@@ -120,52 +109,50 @@ const MusicManager: React.FC<MusicManagerProps> = ({
         )}
       </header>
 
-      <div className="flex-1 overflow-y-auto no-scrollbar pr-1 pb-24">
+      <div className="flex-1 overflow-y-auto no-scrollbar pr-1 pb-32">
         {filteredItems.length === 0 ? (
-          <div className="h-full flex flex-col items-center justify-center opacity-10 space-y-4 py-20">
-             <i className="fa-solid fa-box-open text-3xl"></i>
-             <p className="text-[7px] font-black uppercase tracking-[0.5em]">未发现共鸣</p>
+          <div className="h-full flex flex-col items-center justify-center opacity-40 space-y-6 py-20 text-center">
+             <i className="fa-solid fa-box-open text-6xl text-white/20"></i>
+             <div className="space-y-2">
+               <p className="text-sm font-black uppercase tracking-[0.4em] text-white">列表空空如也</p>
+               <p className="text-[10px] font-bold text-white/40">尝试更换关键词或刷新库</p>
+             </div>
           </div>
         ) : (
-          <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-8 xl:grid-cols-10 gap-2 md:gap-3">
+          <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-8 gap-4 md:gap-6">
             {filteredItems.map((item: any) => (
               <div 
                 key={item.id} 
                 onClick={() => activeTab === 'music' ? onViewDetails(item) : onViewVideoDetails(item)}
-                className="group bg-white/[0.02] border border-white/5 rounded-lg p-1.5 md:p-2 hover:bg-white/[0.06] hover:shadow-[0_20px_40px_-10px_rgba(0,0,0,1)] transition-all duration-500 cursor-pointer flex flex-col gap-2 relative ring-1 ring-white/5 overflow-hidden"
+                className="group virtual-list-item bg-white/[0.04] border border-white/10 rounded-2xl p-3 md:p-4 hover:bg-white/[0.1] hover:shadow-[0_25px_50px_-12px_rgba(0,0,0,0.5)] transition-all duration-500 cursor-pointer flex flex-col gap-4 relative ring-1 ring-white/5 overflow-hidden"
               >
-                <div className="relative aspect-square rounded-md overflow-hidden shadow-lg ring-1 ring-white/10">
-                  <img src={item.coverUrl} className="w-full h-full object-cover grayscale-[20%] group-hover:grayscale-0 transition-all duration-500 scale-105 group-hover:scale-100" alt="" />
+                <div className="relative aspect-square rounded-xl overflow-hidden shadow-2xl ring-1 ring-white/20">
+                  <img src={item.coverUrl} className="w-full h-full object-cover group-hover:scale-110 transition-all duration-700" alt="" />
                   
-                  {/* 悬浮覆盖层 */}
                   <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-all duration-300 flex items-center justify-center">
-                      <div className="w-8 h-8 bg-white/90 rounded-lg flex items-center justify-center text-black scale-50 group-hover:scale-100 transition-transform">
-                         <i className="fa-solid fa-magnifying-glass-plus text-[10px]"></i>
+                      <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center text-black scale-50 group-hover:scale-100 transition-transform">
+                         <i className="fa-solid fa-arrow-up-right-from-square text-xs"></i>
                       </div>
                   </div>
 
-                  {/* 删除按钮 - 极简显示 */}
                   <button 
                     onClick={(e) => {
                       e.stopPropagation();
-                      if(confirm('抹除记录？')) {
+                      if(confirm('确定要从云端物理抹除此文件吗？此操作不可逆！')) {
                         const key = decodeURIComponent(item.url.split('public/wangyiyun/')[1]);
                         (activeTab === 'music' ? deleteSong(key) : deleteFile(key)).then(() => onRefresh());
                       }
                     }}
-                    className="absolute top-1 right-1 w-5 h-5 rounded-md bg-black/80 text-white/20 hover:text-red-500 hover:bg-red-500/20 transition-all flex items-center justify-center opacity-0 group-hover:opacity-100"
+                    className="absolute top-2 right-2 w-7 h-7 rounded-lg bg-black/80 text-white/60 hover:text-red-500 hover:bg-red-500/20 transition-all flex items-center justify-center opacity-0 group-hover:opacity-100"
                   >
-                    <i className="fa-solid fa-trash-can text-[7px]"></i>
+                    <i className="fa-solid fa-trash-can text-[10px]"></i>
                   </button>
                 </div>
                 
                 <div className="flex-1 min-w-0 pb-1">
-                  <h4 className="text-[9px] md:text-[10px] font-black text-white truncate tracking-tight group-hover:text-indigo-300 transition-colors leading-tight">{item.name}</h4>
-                  <p className="text-[7px] font-bold text-white/10 uppercase tracking-tighter truncate mt-0.5 group-hover:text-white/30 transition-colors italic">{item.artist || 'Echo'}</p>
+                  <h4 className="text-[11px] md:text-[13px] font-black text-white truncate tracking-tight group-hover:text-indigo-300 transition-colors leading-tight">{item.name}</h4>
+                  <p className="text-[9px] font-bold text-white/50 uppercase tracking-widest truncate mt-1 group-hover:text-white/80 transition-colors italic">{item.artist || '子夜回响'}</p>
                 </div>
-
-                {/* 背景装饰文字 */}
-                <div className="absolute -bottom-1 -right-1 text-[20px] font-black text-white/[0.02] italic select-none pointer-events-none group-hover:text-white/[0.05] transition-all">MAP</div>
               </div>
             ))}
           </div>
