@@ -4,15 +4,23 @@ import { S3_CONFIG, DEFAULT_COVERS, EDGE_FUNCTION_CONFIG } from "../constants";
 import { Song, Video } from "../types";
 import { localTranslate, extractLocalTags } from "./translationService";
 
-const client = new S3Client({
-  endpoint: S3_CONFIG.endpoint,
-  region: () => Promise.resolve(S3_CONFIG.region),
-  credentials: () => Promise.resolve({
-    accessKeyId: S3_CONFIG.accessKeyId,
-    secretAccessKey: S3_CONFIG.secretAccessKey,
-  }),
-  forcePathStyle: true,
-});
+// 延迟初始化S3客户端，避免模块级初始化问题
+let client: S3Client | null = null;
+
+const getS3Client = (): S3Client => {
+  if (!client) {
+    client = new S3Client({
+      endpoint: S3_CONFIG.endpoint,
+      region: S3_CONFIG.region,
+      credentials: {
+        accessKeyId: S3_CONFIG.accessKeyId,
+        secretAccessKey: S3_CONFIG.secretAccessKey,
+      },
+      forcePathStyle: true,
+    });
+  }
+  return client;
+};
 
 /**
  * 哈希确定性算法：将字符串映射到 DEFAULT_COVERS 索引
@@ -78,7 +86,7 @@ export const fetchSongs = async (): Promise<Song[]> => {
       Bucket: S3_CONFIG.bucketName,
       Prefix: S3_CONFIG.folderPrefix || undefined,
     });
-    const response = await client.send(command);
+    const response = await getS3Client().send(command);
     if (!response.Contents) return [];
     
     const audioExtensions = ['.mp3', '.wav', '.m4a', '.flac', '.ogg', '.aac'];
@@ -258,7 +266,7 @@ export const fetchVideos = async (): Promise<Video[]> => {
       Bucket: S3_CONFIG.bucketName,
       Prefix: S3_CONFIG.videoFolderPrefix || undefined,
     });
-    const response = await client.send(command);
+    const response = await getS3Client().send(command);
     if (!response.Contents) return [];
     
     const videoExtensions = ['.mp4', '.mov', '.webm', '.mkv'];
