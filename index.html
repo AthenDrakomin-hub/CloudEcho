@@ -1,0 +1,132 @@
+
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>子夜回响 - 东南亚深夜电台</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800;900&family=Noto+Serif+SC:wght@700;900&display=swap');
+    
+    :root {
+      --aurora-1: #020202;
+      --aurora-2: #080808;
+      --netease-red: #E60026;
+      --glass-bg: rgba(10, 10, 10, 0.9);
+      --glass-border: rgba(255, 255, 255, 0.1);
+    }
+    
+    * {
+      font-family: 'Inter', -apple-system, sans-serif;
+      -webkit-font-smoothing: antialiased;
+      box-sizing: border-box;
+      user-select: none;
+    }
+
+    body {
+      margin: 0;
+      padding: 0;
+      overflow: hidden;
+      height: 100vh;
+      background: var(--aurora-1);
+      color: #ffffff;
+      touch-action: manipulation;
+    }
+
+    .aurora-container {
+      position: fixed;
+      inset: 0;
+      z-index: -2;
+      background: radial-gradient(circle at top left, #1a0a0a, transparent 40%),
+                  radial-gradient(circle at bottom right, #0a0a1a, transparent 40%),
+                  #020202;
+    }
+
+    .aurora-text {
+      background: linear-gradient(135deg, #fff 0%, #E60026 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .glass-dark-morphism {
+      background: var(--glass-bg);
+      backdrop-filter: blur(25px);
+      -webkit-backdrop-filter: blur(25px);
+      border: 1px solid var(--glass-border);
+    }
+
+    .preserve-3d {
+      transform-style: preserve-3d;
+      perspective: 1500px;
+    }
+    .backface-hidden {
+      backface-visibility: hidden;
+      -webkit-backface-visibility: hidden;
+    }
+    .rotate-y-180 {
+      transform: rotateY(180deg);
+    }
+
+    .custom-scrollbar::-webkit-scrollbar { width: 4px; }
+    .custom-scrollbar::-webkit-scrollbar-track { background: rgba(255, 255, 255, 0.02); }
+    .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(230, 0, 38, 0.3); border-radius: 10px; }
+    
+    @keyframes dj-bar {
+      0%, 100% { transform: scaleY(0.4); opacity: 0.6; }
+      50% { transform: scaleY(1); opacity: 1; }
+    }
+    .dj-bar-anim { animation: dj-bar 0.4s ease-in-out infinite; transform-origin: bottom; }
+
+    input[type=range] {
+      -webkit-appearance: none;
+      background: transparent;
+    }
+    input[type=range]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      height: 14px;
+      width: 14px;
+      border-radius: 50%;
+      background: #ffffff;
+      cursor: pointer;
+      margin-top: -5px;
+      box-shadow: 0 0 15px rgba(230,0,38,0.5);
+    }
+    
+    @keyframes spin-slow {
+      from { transform: rotate(0deg); }
+      to { transform: rotate(360deg); }
+    }
+    .animate-spin-slow { animation: spin-slow 20s linear infinite; }
+  </style>
+  <script type="importmap">
+{
+  "imports": {
+    "react": "https://esm.sh/react@19.0.0",
+    "react-dom": "https://esm.sh/react-dom@19.0.0",
+    "react-dom/": "https://esm.sh/react-dom@19.0.0/",
+    "react/": "https://esm.sh/react@19.0.0/",
+    "@aws-sdk/client-s3": "https://esm.sh/@aws-sdk/client-s3@3.712.0?bundle&target=browser",
+    "@google/genai": "https://esm.sh/@google/genai@^1.35.0",
+    "@vitejs/plugin-react": "https://esm.sh/@vitejs/plugin-react@^5.1.2",
+    "vite": "https://esm.sh/vite@^7.3.1"
+  }
+}
+</script>
+  <script type="module" src="index.tsx"></script>
+</head>
+<body>
+  <div class="initial-loader fixed inset-0 bg-[#020202] z-[10000] flex items-center justify-center transition-opacity duration-700">
+     <div class="text-center space-y-6">
+        <div class="w-12 h-12 border-2 border-red-500/20 border-t-red-500 rounded-full animate-spin mx-auto"></div>
+        <div className="space-y-2">
+           <p class="text-white font-black text-xs tracking-[0.5em] uppercase animate-pulse">NOCTURNE ECHO</p>
+           <p class="text-white/20 text-[8px] font-bold uppercase tracking-widest">正在连接子夜信号轨道...</p>
+        </div>
+     </div>
+  </div>
+  <div class="aurora-container"></div>
+  <div id="root"></div>
+</body>
+</html>
