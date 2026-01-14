@@ -15,9 +15,8 @@ This file provides guidance to Qoder (qoder.com) when working with code in this 
 ## 开发命令
 
 ```bash
-# 安装依赖（首次需要安装terser）
+# 安装依赖
 npm install
-npm install terser --save-dev
 
 # 启动开发服务器
 npm run dev
@@ -73,5 +72,5 @@ npm run preview
 - 所有API密钥和访问凭证已在代码中硬编码，请注意安全风险
 - 项目使用Vercel部署，包含vercel.json配置文件
 - 支持共享模式（通过URL参数mode=shared启用）
-- 构建时需要额外安装terser依赖：`npm install terser --save-dev`
+- terser依赖已添加到dependencies中，确保Vercel等部署平台能正确构建
 - 存在一个循环chunk警告，但不影响正常构建和运行
