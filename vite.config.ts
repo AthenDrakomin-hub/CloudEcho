@@ -10,21 +10,11 @@ export default defineConfig({
     chunkSizeWarningLimit: 1000,
     rollupOptions: {
       output: {
-        // 2. 实施手动分块策略 (Manual Chunking)
-        // 将 node_modules 中的大型库提取到独立分块，优化加载性能
-        manualChunks(id) {
-          if (id.includes('node_modules')) {
-            if (id.includes('@aws-sdk')) {
-              return 'vendor-aws';
-            }
-            if (id.includes('react')) {
-              return 'vendor-react';
-            }
-            if (id.includes('@google/genai')) {
-              return 'vendor-genai';
-            }
-            return 'vendor'; // 其他第三方库
-          }
+        // 2. 简化分块策略，避免循环依赖
+        manualChunks: {
+          'vendor-react': ['react', 'react-dom'],
+          'vendor-aws': ['@aws-sdk/client-s3'],
+          'vendor-genai': ['@google/genai']
         },
         // 3. 优化分块命名，利于缓存
         chunkFileNames: 'assets/js/[name]-[hash].js',
