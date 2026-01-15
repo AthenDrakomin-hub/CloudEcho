@@ -24,18 +24,20 @@ export const BRAND_COLORS = {
 };
 
 export const EMOTIONAL_QUOTES: Quote[] = [
-  { id: 22, category: 'sad', content: '我这辈子得到了很多空头支票，小时候爸妈答应买的玩具，恋人口中的永远。' },
-  { id: 101, category: 'sad', content: '东南亚的晚风很潮湿，像极了在异乡深夜里偷偷擦掉的眼泪。' },
-  { id: 106, category: 'sad', content: 'DJ 震得碎的是耳膜，震不碎的是心底那份挥之不去的落寞。' },
-  { id: 107, category: 'sad', content: '我们在最没有能力的年纪，遇到了那个最想承诺一生的人。' },
-  { id: 108, category: 'sad', content: '所谓的浪子，不过是把那些没兑现的“永远”，换成了不同城市的烈酒。' },
-  { id: 109, category: 'sad', content: '这张名为“未来”的空头支票，我还要在异乡透支多少年？' },
-  { id: 102, category: 'sad', content: '网易云最扎心的评论：你努力合群的样子，真的很孤独。' },
-  { id: 110, category: 'sad', content: '东南亚深夜电台：给每一个不回家的灵魂，找个能安放遗憾的地方。' },
-  { id: 104, category: 'sad', content: '有时候，我们听的不是歌，而是那个无法言说的自己。' },
-  { id: 105, category: 'sad', content: '生活是一场明目张胆的欺骗，而我们却在为了那张空头支票拼命。' },
-  { id: 1, category: 'sad', content: '现在的状态，不是不开心，也不是难过，就是一种淡淡的无能为力和麻木。' },
-  { id: 111, category: 'sad', content: '酒杯里晃动的不是冰块，是那些被我们嚼碎了咽下去的乡愁。' }
+  // Added createdAt field to comply with Quote interface definition
+  { id: '22', category: 'sad', content: '我这辈子得到了很多空头支票，小时候爸妈答应买的玩具，恋人口中的永远。', createdAt: 1710000000000 },
+  { id: '101', category: 'sad', content: '东南亚的晚风很潮湿，像极了在异乡深夜里偷偷擦掉的眼泪。', createdAt: 1710000000000 },
+  { id: '106', category: 'sad', content: 'DJ 震得碎的是耳膜，震不碎的是心底那份挥之不去的落寞。', createdAt: 1710000000000 },
+  { id: '107', category: 'sad', content: '我们在最没有能力的年纪，遇到了那个最想承诺一生的人。', createdAt: 1710000000000 },
+  { id: '108', category: 'sad', content: '所谓的浪子，不过是把那些没兑现的“永远”，换成了不同城市的烈酒。', createdAt: 1710000000000 },
+  { id: '109', category: 'sad', content: '这张名为“未来”的空头支票，我还要在异乡透支多少年？', createdAt: 1710000000000 },
+  { id: '102', category: 'sad', content: '网易云最扎心的评论：你努力合群的样子，真的很孤独。', createdAt: 1710000000000 },
+  { id: '110', category: 'sad', content: '东南亚深夜电台：给每一个不回家的灵魂，找个能安放遗憾的地方。', createdAt: 1710000000000 },
+  { id: '104', category: 'sad', content: '有时候，我们听的不是歌，而是那个无法言说的自己。', createdAt: 1710000000000 },
+  { id: '105', category: 'sad', content: '生活是一场明目张胆的欺骗，而我们却在为了那张空头支票拼命。', createdAt: 1710000000000 },
+  { id: '1', category: 'sad', content: '现在的状态，不是不开心，也不是难过，就是一种淡淡的无能为力和麻木。', createdAt: 1710000000000 },
+  { id: '111', category: 'sad', content: '酒杯里晃动的不是冰块，是那些被我们嚼碎了咽下去的乡愁。', createdAt: 1710000000000 },
+  { id: '200', category: 'sad', content: '这一生的热烈，最终都在网易云的深夜里，变成了无声的妥协。', createdAt: 1710000000000 }
 ];
 
 export const DEFAULT_COVERS = [

@@ -1,7 +1,7 @@
 
 import React, { useState } from 'react';
 import { Video, NotificationType } from '../types';
-import { renameFile, downloadVideo } from '../services/s3Service';
+import { renameVideoV3, downloadVideo } from '../services/s3Service';
 import { localTranslate } from '../services/translationService';
 import { S3_CONFIG } from '../constants';
 
@@ -40,13 +40,13 @@ const VideoDetails: React.FC<VideoDetailsProps> = ({ video, onBack, onUpdate, on
 
     setIsSaving(true);
     try {
-      const ext = video.url.split('.').pop() || 'mp4';
-      const success = await renameFile(video.url, `${tempName.trim()}.${ext}`, S3_CONFIG.videoFolderPrefix);
-      if (!success) throw new Error("S3 物理更名失败");
+      // 使用 V3 协议进行物理重命名，将中文名编码为 Base64 后存入 S3
+      const success = await renameVideoV3(video.url, tempName.trim());
+      if (!success) throw new Error("S3 物理映射失败 (可能存在权限或连接问题)");
 
       onUpdate({ ...video, name: tempName.trim() });
       setIsEditingMetadata(false);
-      onNotify('云端文件重命名成功', 'success');
+      onNotify('云端文件 V3 协议重命名成功', 'success');
       onBack();
     } catch (err: any) {
       onNotify(`同步失败: ${err.message}`, 'error');
@@ -63,98 +63,98 @@ const VideoDetails: React.FC<VideoDetailsProps> = ({ video, onBack, onUpdate, on
   };
 
   return (
-    <div className="h-full flex flex-col p-6 md:p-12 overflow-y-auto relative bg-white custom-scrollbar border-l-4 border-black">
-      <div className="max-w-6xl mx-auto w-full space-y-12 pb-20">
+    <div className="h-full flex flex-col p-8 md:p-16 overflow-y-auto relative bg-[#121212] custom-scrollbar text-white">
+      <div className="max-w-6xl mx-auto w-full space-y-12 pb-24">
         <nav className="flex items-center justify-between">
-          <button onClick={onBack} className="flex items-center space-x-3 text-black hover:text-red-600 transition-all group">
-            <i className="fa-solid fa-arrow-left text-xl transition-transform group-hover:-translate-x-2"></i>
-            <span className="font-[900] text-xs uppercase tracking-[0.3em]">返回影集清单</span>
+          <button onClick={onBack} className="flex items-center space-x-3 text-white/40 hover:text-white transition-all group">
+            <i className="fa-solid fa-arrow-left text-lg transition-transform group-hover:-translate-x-1"></i>
+            <span className="font-black text-[10px] uppercase tracking-[0.3em]">返回影集清单</span>
           </button>
           
           <button 
             onClick={handleDownload} 
             disabled={isDownloading}
-            className="flex items-center space-x-4 px-8 py-4 bg-black text-white font-[900] text-xs uppercase tracking-widest hover:bg-red-600 transition-all shadow-[6px_6px_0px_#FF0000] active:translate-x-1 active:translate-y-1 active:shadow-none"
+            className="flex items-center space-x-4 px-10 py-4 bg-white text-black font-black text-[10px] uppercase tracking-widest hover:bg-zinc-200 transition-all shadow-xl active:scale-95"
           >
             {isDownloading ? <i className="fa-solid fa-spinner animate-spin"></i> : <i className="fa-solid fa-download"></i>}
-            <span>{isDownloading ? 'DOWNLOADING...' : '下载此原片'}</span>
+            <span>{isDownloading ? 'DOWNLOADING...' : '下载原片'}</span>
           </button>
         </nav>
 
-        <section className="space-y-10 animate-in fade-in slide-in-from-top-4 duration-700">
-          <div className="w-full aspect-video border-8 border-black shadow-[20px_20px_0px_#EEEEEE] bg-black relative">
+        <section className="space-y-12 animate-in fade-in slide-in-from-bottom-4 duration-700">
+          <div className="w-full aspect-video rounded-[2.5rem] overflow-hidden border border-white/10 shadow-2xl bg-black relative group">
             <video src={video.url} className="w-full h-full object-contain" controls />
           </div>
           
-          <div className="w-full flex flex-col md:flex-row items-start justify-between gap-10">
-            <div className="flex-1 space-y-6 w-full">
+          <div className="w-full flex flex-col md:flex-row items-start justify-between gap-12">
+            <div className="flex-1 space-y-8 w-full">
               {isEditingMetadata ? (
-                <div className="bg-zinc-50 border-4 border-black p-8 space-y-6">
-                  <div className="flex items-center justify-between border-b-2 border-black pb-4">
-                     <span className="text-[10px] font-black uppercase tracking-widest italic">映画名修正 (Cloud)</span>
+                <div className="bg-white/5 border border-white/10 p-10 rounded-[2.5rem] space-y-8 shadow-2xl">
+                  <div className="flex items-center justify-between border-b border-white/5 pb-6">
+                     <span className="text-[10px] font-black uppercase tracking-widest italic text-white/40">映画名修正 (V3-Enc Mapping)</span>
                      <button 
                       onClick={handleLocalCorrection} 
                       disabled={isProcessing}
-                      className="px-4 py-2 bg-black text-white text-[9px] font-black uppercase flex items-center space-x-2 hover:bg-red-600 transition-all"
+                      className="px-6 py-2.5 bg-white/10 border border-white/10 text-white text-[9px] font-black uppercase rounded-xl hover:bg-white/20 transition-all"
                      >
-                       <i className="fa-solid fa-spell-check"></i>
-                       <span>{isProcessing ? '校准中...' : '本地词库校准'}</span>
+                       <i className="fa-solid fa-spell-check mr-2"></i>
+                       <span>{isProcessing ? '校准中...' : '规则引擎校准'}</span>
                      </button>
                   </div>
                   <input 
                     autoFocus
                     value={tempName} 
                     onChange={(e) => setTempName(e.target.value)} 
-                    className="w-full bg-white border-4 border-black p-6 text-3xl font-[900] italic outline-none focus:bg-yellow-50" 
+                    className="w-full bg-white/5 border border-white/10 rounded-2xl p-6 text-2xl font-black italic text-white outline-none focus:border-[#C20C0C]/50 transition-all" 
                   />
-                  <div className="flex items-center space-x-4 pt-2">
-                     <button onClick={handleSaveMetadata} disabled={isSaving} className="flex-1 py-5 bg-black text-white font-[900] text-xs uppercase tracking-widest hover:bg-red-600 transition-all flex items-center justify-center space-x-3">
+                  <div className="flex items-center gap-4 pt-4">
+                     <button onClick={handleSaveMetadata} disabled={isSaving} className="flex-1 py-5 bg-[#C20C0C] text-white font-black text-[10px] uppercase tracking-widest hover:bg-red-700 transition-all rounded-2xl flex items-center justify-center gap-3">
                        {isSaving ? <i className="fa-solid fa-spinner animate-spin"></i> : <i className="fa-solid fa-cloud-arrow-up"></i>}
-                       <span>应用物理重命名</span>
+                       <span>应用 V3 协议物理重命名</span>
                      </button>
-                     <button onClick={() => setIsEditingMetadata(false)} className="px-8 py-5 border-4 border-black font-black text-xs uppercase">取消</button>
+                     <button onClick={() => setIsEditingMetadata(false)} className="px-10 py-5 border border-white/10 bg-white/5 rounded-2xl font-black text-[10px] uppercase text-white/40 hover:text-white transition-all">取消</button>
                   </div>
                 </div>
               ) : (
-                <div className="group relative">
-                  <h1 className="text-5xl md:text-7xl font-[900] text-black tracking-tighter leading-none italic uppercase">{video.name}</h1>
-                  <p className="text-xs font-black uppercase tracking-[0.4em] mt-6 text-red-600">MAPPING NODE: {video.id.slice(0, 24)}</p>
+                <div className="space-y-6">
+                  <h1 className="text-5xl md:text-8xl font-black text-white tracking-tighter leading-none italic uppercase aurora-text">{video.name}</h1>
+                  <p className="text-[10px] font-black uppercase tracking-[0.5em] text-white/20">V3 MAPPING NODE: {video.id.slice(0, 16)}...</p>
                   <button 
                     onClick={() => setIsEditingMetadata(true)} 
-                    className="mt-8 px-6 py-3 border-4 border-black bg-white font-black text-[10px] uppercase tracking-widest hover:bg-black hover:text-white transition-all shadow-[6px_6px_0px_#000000]"
+                    className="mt-4 px-8 py-4 bg-white/5 border border-white/10 rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-white/10 transition-all flex items-center gap-3"
                   >
-                    <i className="fa-solid fa-pen-nib mr-3"></i>
-                    修正视频名称
+                    <i className="fa-solid fa-pen-nib text-[#C20C0C]"></i>
+                    修正节点名称
                   </button>
                 </div>
               )}
             </div>
 
-            <div className="shrink-0 space-y-4">
-              <div className="p-10 border-4 border-black bg-black text-white text-center">
-                 <p className="text-[10px] font-black uppercase tracking-widest mb-2 opacity-50">Storage Status</p>
-                 <div className="flex items-center justify-center space-x-3">
-                    <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></div>
-                    <span className="text-xl font-[900] uppercase italic tracking-tighter">Verified</span>
+            <div className="shrink-0 space-y-4 w-full md:w-auto">
+              <div className="p-10 border border-white/10 bg-white/5 rounded-[2rem] text-center space-y-4">
+                 <p className="text-[9px] font-black uppercase tracking-widest text-white/20">Storage Channel</p>
+                 <div className="flex items-center justify-center gap-3">
+                    <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></div>
+                    <span className="text-2xl font-black uppercase italic tracking-tighter">Online</span>
                  </div>
               </div>
             </div>
           </div>
         </section>
 
-        <section className="bg-zinc-50 border-4 border-black p-10 space-y-8">
-           <h3 className="text-xs font-black text-black uppercase tracking-[0.3em] flex items-center gap-4">
-             <i className="fa-solid fa-server text-red-600"></i>
+        <section className="bg-white/5 border border-white/10 rounded-[2.5rem] p-12 space-y-10">
+           <h3 className="text-[10px] font-black text-white uppercase tracking-[0.4em] flex items-center gap-4">
+             <i className="fa-solid fa-server text-[#C20C0C]"></i>
              物理存储上下文 (Storage Context)
            </h3>
-           <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
-              <div className="space-y-2">
-                 <p className="text-[10px] font-black uppercase text-zinc-400">Path Prefix</p>
-                 <p className="text-sm font-bold font-mono text-black">{S3_CONFIG.videoFolderPrefix}</p>
+           <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
+              <div className="space-y-3">
+                 <p className="text-[9px] font-black uppercase text-white/20 tracking-widest">S3 Physical Key</p>
+                 <p className="text-sm font-black font-mono text-white/60 truncate italic">{decodeURIComponent(video.url.split('/').pop() || '')}</p>
               </div>
-              <div className="space-y-2">
-                 <p className="text-[10px] font-black uppercase text-zinc-400">Last Synced</p>
-                 <p className="text-sm font-bold font-mono text-black">{video.lastModified ? new Date(video.lastModified).toLocaleString() : 'N/A'}</p>
+              <div className="space-y-3">
+                 <p className="text-[9px] font-black uppercase text-white/20 tracking-widest">Last Synced</p>
+                 <p className="text-sm font-black font-mono text-white/60">{video.lastModified ? new Date(video.lastModified).toLocaleString() : 'N/A'}</p>
               </div>
            </div>
         </section>

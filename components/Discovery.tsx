@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Song, NotificationType } from '../types';
 import { searchGlobalMusic, fetchTrendingMusic } from '../services/discoveryService';
 
@@ -12,178 +12,94 @@ const Discovery: React.FC<DiscoveryProps> = ({ onPlaySong, onNotify }) => {
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<Song[]>([]);
   const [trending, setTrending] = useState<Song[]>([]);
-  
   const [isSearching, setIsSearching] = useState(false);
-  const [isLoadingMore, setIsLoadingMore] = useState(false);
-  const [isLoadingChart, setIsLoadingChart] = useState(true);
-  
-  const [currentIndex, setCurrentIndex] = useState(0);
-  const [totalResults, setTotalResults] = useState(0);
-  const PAGE_SIZE = 20;
+  const [activeTag, setActiveTag] = useState('精选');
 
   useEffect(() => {
-    const loadChart = async () => {
-      setIsLoadingChart(true);
-      const data = await fetchTrendingMusic(0, PAGE_SIZE);
-      setTrending(data);
-      setIsLoadingChart(false);
-    };
-    loadChart();
+    fetchTrendingMusic(0, 30).then(setTrending);
   }, []);
 
-  const handleSearch = async (e?: React.FormEvent, isLoadMore = false) => {
-    if (e) e.preventDefault();
+  const handleSearch = async (e: React.FormEvent) => {
+    e.preventDefault();
     if (!query.trim()) return;
-
-    const newIndex = isLoadMore ? currentIndex + PAGE_SIZE : 0;
-    
-    if (isLoadMore) setIsLoadingMore(true);
-    else setIsSearching(true);
-
+    setIsSearching(true);
     try {
-      const { data, total } = await searchGlobalMusic(query, newIndex, PAGE_SIZE);
-      
-      if (isLoadMore) {
-        setResults(prev => [...prev, ...data]);
-      } else {
-        setResults(data);
-        setTotalResults(total);
-        if (data.length === 0) onNotify('未检测到相关情感信号', 'info');
-      }
-      
-      setCurrentIndex(newIndex);
+      const { data } = await searchGlobalMusic(query, 0, 30);
+      setResults(data);
     } catch (e) {
-      onNotify('链路建立异常，请重试', 'error');
-    } finally {
-      setIsSearching(false);
-      setIsLoadingMore(false);
+      onNotify('云端连接异常', 'error');
     }
-  };
-
-  const handleClear = () => {
-    setResults([]);
-    setQuery('');
-    setCurrentIndex(0);
-    setTotalResults(0);
+    setIsSearching(false);
   };
 
   const currentList = results.length > 0 ? results : trending;
-  const isShowResults = results.length > 0;
-  const hasMore = isShowResults && results.length < totalResults;
 
   return (
-    <div className="h-full flex flex-col p-6 md:p-16 overflow-hidden bg-transparent">
-      <header className="mb-10 md:mb-14 space-y-8 md:space-y-12">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center space-x-6 md:space-x-12">
-             <div className="w-16 h-16 md:w-24 md:h-24 bg-gradient-to-br from-indigo-500 via-purple-600 to-pink-500 rounded-[2rem] md:rounded-[2.8rem] flex items-center justify-center shadow-[0_20px_60px_-10px_rgba(99,102,241,0.6)] group border border-white/20">
-                <i className="fa-solid fa-satellite-dish text-white text-2xl md:text-4xl group-hover:scale-125 group-hover:rotate-12 transition-all duration-700"></i>
-             </div>
-             <div className="space-y-2 md:space-y-4">
-                <h1 className="text-4xl md:text-7xl font-black text-white tracking-tighter italic leading-none drop-shadow-2xl aurora-text">极光信号</h1>
-                <div className="flex items-center space-x-3 md:space-x-4">
-                   <span className="hidden md:block h-[1px] w-10 bg-indigo-500/50"></span>
-                   <p className="text-[9px] md:text-[11px] text-white/40 font-black uppercase tracking-[0.4em] md:tracking-[0.8em]">同步全球音乐流 · 共享计划 V4.2</p>
-                </div>
-             </div>
-          </div>
-          {isShowResults && (
-            <button 
-              onClick={handleClear} 
-              className="px-6 md:px-10 py-3 md:py-5 bg-white/5 border border-white/15 rounded-[1.5rem] md:rounded-[2rem] text-[9px] md:text-[10px] font-black uppercase text-indigo-400 hover:bg-white/10 hover:text-white transition-all tracking-widest shadow-3xl"
-            >
-              重置
-            </button>
-          )}
-        </div>
-
-        <div className="max-w-6xl">
-          <form onSubmit={(e) => handleSearch(e)} className="relative group">
-            <input 
-              type="text" 
-              placeholder="搜索全球曲库，同步情感共鸣..." 
-              className="w-full bg-white/[0.03] backdrop-blur-3xl border border-white/10 rounded-[2.5rem] md:rounded-[3.5rem] py-6 md:py-10 px-8 md:px-14 pr-24 md:pr-40 text-base md:text-xl font-black text-white outline-none focus:bg-white/[0.08] focus:border-indigo-500/50 transition-all placeholder-white/15"
-              value={query}
-              onChange={e => setQuery(e.target.value)}
-            />
-            <button 
-              type="submit"
-              disabled={isSearching}
-              className="absolute right-4 md:right-8 top-1/2 -translate-y-1/2 w-14 h-14 md:w-24 md:h-24 bg-white text-black rounded-[1.8rem] md:rounded-[2.5rem] flex items-center justify-center hover:scale-110 active:scale-95 transition-all shadow-xl disabled:opacity-50"
-            >
-              {isSearching ? <i className="fa-solid fa-spinner animate-spin text-xl"></i> : <i className="fa-solid fa-magnifying-glass text-xl md:text-3xl"></i>}
-            </button>
-          </form>
-        </div>
-      </header>
-
-      <div className="mb-8 md:mb-12 flex items-center justify-between px-4 md:px-8">
-         <div className="flex flex-col">
-            <h2 className="text-sm md:text-[16px] font-black text-white uppercase tracking-[0.5em] md:tracking-[1em] italic drop-shadow-md aurora-text">
-                {isShowResults ? `同步结果 (Nodes: ${totalResults})` : "极光热榜 (Trending Signals)"}
-            </h2>
-            <span className="text-[7px] md:text-[8px] font-bold text-white/20 uppercase tracking-[0.4em] md:tracking-[0.5em] mt-2 italic">
-               ATMOSPHERE STABLE · READY TO MAP
-            </span>
-         </div>
-         <div className="flex items-center space-x-4 bg-white/5 px-4 md:px-8 py-2 md:py-4 rounded-full border border-white/10">
-            <div className={`w-2 h-2 md:w-3 md:h-3 rounded-full animate-pulse ${isShowResults ? 'bg-indigo-500 shadow-[0_0_15px_indigo]' : 'bg-green-500 shadow-[0_0_15px_green]'}`}></div>
-            <span className="text-[8px] md:text-[10px] font-black text-white/30 uppercase tracking-widest">{isShowResults ? 'SYNCING' : 'READY'}</span>
-         </div>
-      </div>
-
-      <div className="flex-1 overflow-y-auto no-scrollbar pr-2 md:pr-6">
-        {isLoadingChart && !isShowResults ? (
-          <div className="h-full flex flex-col items-center justify-center space-y-12 opacity-20">
-             <div className="w-16 h-16 border-[4px] border-white/5 border-t-indigo-500 rounded-full animate-spin"></div>
-             <p className="text-[10px] font-black uppercase tracking-[1em] animate-pulse">正在映射云端数据链...</p>
-          </div>
-        ) : (
-          <div className="space-y-16 md:space-y-24 pb-32">
-            <div className="grid grid-cols-2 md:grid-cols-[repeat(auto-fill,minmax(340px,1fr))] gap-6 md:gap-16">
-                {currentList.map((song) => (
-                <div 
-                    key={song.id}
-                    className="group bg-white/[0.03] border border-white/10 rounded-[2.5rem] md:rounded-[4.5rem] p-4 md:p-10 hover:bg-white/[0.08] hover:shadow-[0_40px_100px_-20px_rgba(0,0,0,1)] transition-all duration-1000 cursor-pointer flex flex-col relative overflow-hidden"
-                    onClick={() => {
-                        onPlaySong(song);
-                        onNotify(`已建立情感连接: ${song.name}`, 'info');
-                    }}
+    <div className="h-full flex flex-col bg-transparent overflow-y-auto custom-scrollbar">
+      <div className="p-8 md:p-12 space-y-10 max-w-[1600px] mx-auto w-full pb-32">
+        {/* 顶部搜索与推荐 */}
+        <header className="flex flex-col md:flex-row items-center justify-between gap-8">
+          <div className="space-y-2">
+            <h1 className="text-3xl font-black italic tracking-tighter text-white">发现</h1>
+            <div className="flex items-center gap-6 overflow-x-auto no-scrollbar pb-2">
+              {['精选', '排行榜', '电台', '数字专辑'].map(tag => (
+                <button 
+                  key={tag} 
+                  onClick={() => setActiveTag(tag)}
+                  className={`text-sm font-black whitespace-nowrap pb-1 border-b-2 transition-all ${activeTag === tag ? 'text-[#C20C0C] border-[#C20C0C]' : 'text-white/40 border-transparent hover:text-white'}`}
                 >
-                    <div className="relative aspect-square rounded-[2rem] md:rounded-[4rem] overflow-hidden shadow-2xl mb-6 md:mb-12 group-hover:scale-[1.05] transition-all duration-1000 ring-1 ring-white/10">
-                        <img src={song.coverUrl} className="w-full h-full object-cover grayscale-[30%] group-hover:grayscale-0 transition-all duration-1000" loading="lazy" />
-                        <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-all duration-700 flex flex-col items-center justify-center">
-                            <div className="w-12 h-12 md:w-24 md:h-24 bg-white rounded-[1.2rem] md:rounded-[2.8rem] flex items-center justify-center shadow-3xl scale-75 group-hover:scale-100 transition-all duration-1000 text-black">
-                                <i className="fa-solid fa-play text-xl md:text-4xl ml-1"></i>
-                            </div>
-                        </div>
-                    </div>
-                    <div className="space-y-2 md:space-y-4 px-2 md:px-6 relative z-10">
-                        <h4 className="text-sm md:text-xl font-black text-white truncate tracking-tighter group-hover:aurora-text transition-all duration-700 italic">{song.name}</h4>
-                        <div className="flex items-center justify-between border-t border-white/5 pt-2 md:pt-4">
-                           <p className="text-[9px] md:text-[12px] font-black text-indigo-400/80 uppercase tracking-[0.2em] truncate">{song.artist}</p>
-                           <i className="fa-solid fa-wave-square text-white/10 group-hover:text-pink-500/40 transition-colors text-[8px] md:text-xs"></i>
-                        </div>
-                    </div>
-                    <div className="absolute -bottom-6 -right-6 text-[60px] md:text-[120px] font-black text-white/[0.01] italic select-none pointer-events-none group-hover:text-white/[0.05] transition-all duration-1000">ECHO</div>
-                </div>
-                ))}
+                  {tag}
+                </button>
+              ))}
             </div>
-
-            {hasMore && (
-                <div className="flex justify-center pt-12 md:pt-24">
-                    <button 
-                        onClick={() => handleSearch(undefined, true)}
-                        disabled={isLoadingMore}
-                        className="px-12 md:px-24 py-4 md:py-8 bg-white text-black rounded-[1.5rem] md:rounded-[2.5rem] text-[10px] md:text-[13px] font-black uppercase tracking-[0.4em] md:tracking-[0.8em] shadow-2xl hover:scale-110 active:scale-95 transition-all disabled:opacity-50"
-                    >
-                        {isLoadingMore ? <i className="fa-solid fa-spinner animate-spin mr-4"></i> : <i className="fa-solid fa-bolt-lightning mr-4"></i>}
-                        <span>{isLoadingMore ? '映射中...' : '加载更多极光节点'}</span>
-                    </button>
-                </div>
-            )}
           </div>
-        )}
+          <form onSubmit={handleSearch} className="relative w-full md:w-80">
+            <input 
+              type="text" value={query} onChange={e => setQuery(e.target.value)}
+              placeholder="搜索歌曲、艺术家..." 
+              className="w-full bg-white/5 border border-white/10 rounded-full py-2.5 px-10 text-xs text-white placeholder-white/20 focus:bg-white/10 outline-none transition-all"
+            />
+            <i className={`fa-solid ${isSearching ? 'fa-spinner animate-spin' : 'fa-magnifying-glass'} absolute left-4 top-1/2 -translate-y-1/2 text-white/20 text-[10px]`}></i>
+          </form>
+        </header>
+
+        {/* 热门推荐列表 */}
+        <section className="space-y-6">
+          <div className="flex items-center justify-between">
+            <h3 className="text-lg font-black tracking-tight flex items-center gap-2">
+              <i className="fa-solid fa-fire-flame-curved text-[#C20C0C]"></i>
+              {results.length > 0 ? '搜索结果' : '热门信号推送'}
+            </h3>
+          </div>
+          
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-8 gap-6 md:gap-8">
+            {currentList.map((song) => (
+              <div 
+                key={song.id} 
+                onClick={() => onPlaySong(song)}
+                className="group space-y-3 cursor-pointer"
+              >
+                <div className="relative aspect-square rounded-2xl overflow-hidden shadow-2xl border border-white/5">
+                  <img src={song.coverUrl} className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" alt={song.name} />
+                  {/* 网易云播放量角标 */}
+                  <div className="absolute top-2 right-2 flex items-center gap-1 bg-black/40 backdrop-blur-md px-2 py-0.5 rounded-full">
+                    <i className="fa-solid fa-headphones text-[8px] text-white/80"></i>
+                    <span className="text-[8px] font-mono text-white/80">{(Math.random()*100).toFixed(1)}k</span>
+                  </div>
+                  <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-all flex items-center justify-center">
+                    <div className="w-12 h-12 bg-white/10 backdrop-blur-3xl rounded-full flex items-center justify-center border border-white/20">
+                      <i className="fa-solid fa-play text-white ml-1"></i>
+                    </div>
+                  </div>
+                </div>
+                <div className="space-y-1">
+                  <p className="text-[11px] font-black text-white/90 truncate group-hover:text-[#C20C0C] transition-colors">{song.name}</p>
+                  <p className="text-[9px] font-bold text-white/30 uppercase tracking-widest truncate">{song.artist}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
       </div>
     </div>
   );
