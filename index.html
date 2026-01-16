@@ -4,7 +4,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-  <title>网忆云 - 听见灵魂的回响</title>
+  <title>网忆云 - 子夜回响，听见灵魂</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   <style>
@@ -12,9 +12,11 @@
     
     :root {
       --netease-red: #C20C0C;
-      --netease-black: #121212;
-      --glass-bg: rgba(18, 18, 18, 0.7);
-      --glass-border: rgba(255, 255, 255, 0.05);
+      --netease-black: #020408;
+      --cyber-blue: #00d2ff;
+      --cyber-purple: #9d50bb;
+      --glass-bg: rgba(10, 15, 25, 0.75);
+      --glass-border: rgba(255, 255, 255, 0.4); 
     }
     
     * {
@@ -33,19 +35,84 @@
       color: #ffffff;
     }
 
+    /* 沉浸式星云背景 */
+    .nebula-bg {
+      position: fixed;
+      inset: 0;
+      z-index: -2;
+      background: radial-gradient(circle at 50% 100%, #0d1b3e 0%, #020408 100%);
+      overflow: hidden;
+    }
+
+    .nebula-bg::before {
+      content: '';
+      position: absolute;
+      width: 200%;
+      height: 200%;
+      top: -50%;
+      left: -50%;
+      background-image: 
+        radial-gradient(2px 2px at 20px 30px, #eee, rgba(0,0,0,0)),
+        radial-gradient(2px 2px at 40px 70px, #fff, rgba(0,0,0,0)),
+        radial-gradient(2px 2px at 50px 160px, #ddd, rgba(0,0,0,0)),
+        radial-gradient(2px 2px at 90px 40px, #fff, rgba(0,0,0,0)),
+        radial-gradient(2px 2px at 130px 80px, #fff, rgba(0,0,0,0)),
+        radial-gradient(2px 2px at 160px 120px, #ddd, rgba(0,0,0,0));
+      background-repeat: repeat;
+      background-size: 200px 200px;
+      opacity: 0.6;
+      animation: stars-move 100s linear infinite;
+    }
+
+    .nebula-clouds {
+      position: absolute;
+      inset: 0;
+      background: 
+        radial-gradient(circle at 20% 80%, rgba(0, 210, 255, 0.3) 0%, transparent 40%),
+        radial-gradient(circle at 80% 85%, rgba(157, 80, 187, 0.3) 0%, transparent 40%),
+        radial-gradient(circle at 50% 90%, rgba(194, 12, 12, 0.25) 0%, transparent 50%);
+      filter: blur(60px);
+      animation: clouds-drift 15s ease-in-out infinite alternate;
+    }
+
+    .data-grid {
+      position: absolute;
+      inset: 0;
+      background-image: 
+        linear-gradient(rgba(0, 210, 255, 0.15) 2px, transparent 2px), 
+        linear-gradient(90deg, rgba(0, 210, 255, 0.15) 2px, transparent 2px);
+      background-size: 60px 60px;
+      perspective: 1200px;
+      transform: rotateX(65deg) scale(2.5);
+      transform-origin: bottom;
+      opacity: 0.4;
+      z-index: -1;
+    }
+
+    @keyframes stars-move {
+      from { transform: translateY(0); }
+      to { transform: translateY(-200px); }
+    }
+
+    @keyframes clouds-drift {
+      from { transform: scale(1) translate(0, 0); }
+      to { transform: scale(1.15) translate(3%, 3%); }
+    }
+
     .bg-immersive {
       position: fixed;
       inset: -50px;
-      z-index: -1;
-      filter: blur(60px) brightness(0.4);
+      z-index: -3;
+      filter: blur(100px) brightness(0.25);
       background-size: cover;
       background-position: center;
-      transition: background-image 1.5s ease-in-out;
+      transition: background-image 2.5s ease-in-out;
+      opacity: 0.85;
     }
 
-    .custom-scrollbar::-webkit-scrollbar { width: 4px; }
+    .custom-scrollbar::-webkit-scrollbar { width: 6px; }
     .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
-    .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.1); border-radius: 10px; }
+    .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.4); border-radius: 10px; }
     
     .font-serif-quote { font-family: 'Noto Serif SC', serif; }
 
@@ -60,25 +127,47 @@
       animation-play-state: paused;
     }
 
+    /* 极致高亮强化 */
     .aurora-text {
-      background: linear-gradient(90deg, #fff, #C20C0C, #fff);
+      background: linear-gradient(90deg, #fff, #00d2ff, #9d50bb, #fff);
       background-size: 200% auto;
       -webkit-background-clip: text;
       -webkit-text-fill-color: transparent;
       animation: shine 5s linear infinite;
+      text-shadow: 0 0 20px rgba(255, 255, 255, 0.6);
     }
+    
+    .high-light {
+      color: #ffffff !important;
+      text-shadow: 0 0 12px rgba(255, 255, 255, 0.9), 0 0 25px rgba(255, 255, 255, 0.6);
+      opacity: 1 !important;
+    }
+
     @keyframes shine {
       to { background-position: 200% center; }
     }
 
-    /* 硬件内存条动画 */
-    @keyframes rgb-breath {
-      0% { filter: hue-rotate(0deg) brightness(1); }
-      50% { filter: hue-rotate(180deg) brightness(1.5); }
-      100% { filter: hue-rotate(360deg) brightness(1); }
+    .heavy-border {
+      border: 2px solid rgba(255, 255, 255, 0.4);
+      box-shadow: 0 0 25px rgba(0, 0, 0, 0.6);
     }
-    .rgb-bar {
-      animation: rgb-breath 4s linear infinite;
+    
+    .neon-border-red {
+      border: 2px solid rgba(194, 12, 12, 0.8);
+      box-shadow: 0 0 20px rgba(194, 12, 12, 0.5);
+    }
+
+    .neon-border-cyan {
+      border: 2px solid rgba(0, 210, 255, 0.8);
+      box-shadow: 0 0 20px rgba(0, 210, 255, 0.5);
+    }
+
+    .glass-panel {
+      background: var(--glass-bg);
+      backdrop-filter: blur(30px);
+      -webkit-backdrop-filter: blur(30px);
+      border: 2px solid var(--glass-border);
+      box-shadow: 0 12px 50px 0 rgba(0, 0, 0, 1);
     }
   </style>
   <script type="importmap">
@@ -98,6 +187,10 @@
   <script type="module" src="index.tsx"></script>
 </head>
 <body>
-  <div id="root" class="h-full w-full"></div>
+  <div class="nebula-bg">
+    <div class="nebula-clouds"></div>
+    <div class="data-grid"></div>
+  </div>
+  <div id="root" class="h-full w-full relative z-10"></div>
 </body>
 </html>

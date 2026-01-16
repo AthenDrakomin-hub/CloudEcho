@@ -16,15 +16,7 @@ export const EDGE_FUNCTION_CONFIG = {
   devKey: 'ba6e8c48abfa6b6c6226c75aa59d1acf' 
 };
 
-export const BRAND_COLORS = {
-  neteaseRed: '#E60026',
-  neteaseDark: '#050505',
-  auroraIndigo: '#4f46e5',
-  midnightBlue: '#020617'
-};
-
 export const EMOTIONAL_QUOTES: Quote[] = [
-  // Added createdAt field to comply with Quote interface definition
   { id: '22', category: 'sad', content: '我这辈子得到了很多空头支票，小时候爸妈答应买的玩具，恋人口中的永远。', createdAt: 1710000000000 },
   { id: '101', category: 'sad', content: '东南亚的晚风很潮湿，像极了在异乡深夜里偷偷擦掉的眼泪。', createdAt: 1710000000000 },
   { id: '106', category: 'sad', content: 'DJ 震得碎的是耳膜，震不碎的是心底那份挥之不去的落寞。', createdAt: 1710000000000 },
@@ -45,10 +37,5 @@ export const DEFAULT_COVERS = [
   'https://images.unsplash.com/photo-1470225620780-dba8ba36b745?auto=format&fit=crop&q=80&w=1200',
   'https://images.unsplash.com/photo-1514525253361-bee87184f830?auto=format&fit=crop&q=80&w=1200',
   'https://images.unsplash.com/photo-1459749411177-042180ce673c?auto=format&fit=crop&q=80&w=1200',
-  'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?auto=format&fit=crop&q=80&w=1200',
-  'https://images.unsplash.com/photo-1470071459604-3b5ec3a7fe05?auto=format&fit=crop&q=80&w=1200',
-  'https://images.unsplash.com/photo-1441974231531-c6227db76b6e?auto=format&fit=crop&q=80&w=1200',
-  'https://images.unsplash.com/photo-1501785888041-af3ef285b470?auto=format&fit=crop&q=80&w=1200',
-  'https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?auto=format&fit=crop&q=80&w=1200',
-  'https://images.unsplash.com/photo-1510784722466-f2aa9c52ff6f?auto=format&fit=crop&q=80&w=1200'
+  'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?auto=format&fit=crop&q=80&w=1200'
 ];

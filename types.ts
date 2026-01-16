@@ -43,7 +43,8 @@ export enum ViewMode {
   VIDEO_DETAILS = 'VIDEO_DETAILS',
   SETTINGS = 'SETTINGS',
   PLAYLIST_DETAIL = 'PLAYLIST_DETAIL',
-  COPYWRITING = 'COPYWRITING'
+  COPYWRITING = 'COPYWRITING',
+  LIVE = 'LIVE'
 }
 
 export type NotificationType = 'error' | 'warning' | 'info' | 'success';

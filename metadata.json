@@ -2,7 +2,5 @@
   "name": "网忆云 - 子夜回响",
   "description": "一个融合了深夜电台、伤感文案与自由音乐映射的情感生态系统。让每一首 DJ 和民谣都能找到灵魂的归宿。",
   "author": "AthenDrakomin",
-  "requestFramePermissions": [
-    "microphone"
-  ]
+  "requestFramePermissions": []
 }
