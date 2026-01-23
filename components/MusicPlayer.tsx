@@ -1,250 +1,338 @@
 
-import React, { useState, useEffect, memo, useMemo } from 'react';
+import React, { useState, useRef, useEffect, useMemo, memo } from 'react';
 import { Song, PlaybackMode } from '../types';
-import { EMOTIONAL_QUOTES } from '../constants';
+import { EMOTIONAL_QUOTES, BRAND_COLORS } from '../constants';
+import { generateSoulQuote } from '../services/aiService';
 
-const StylusNeedle = memo(({ isPlaying }: { isPlaying: boolean }) => (
-  <div 
-    className="absolute top-[-20px] left-1/2 -translate-x-4 z-50 transition-transform duration-700 origin-[20%_10%] pointer-events-none"
-    style={{ transform: `rotate(${isPlaying ? '0deg' : '-30deg'}) translateX(-50%)` }}
-  >
-    <img 
-      src="https://s2.music.126.net/style/web2/img/needle.png?a50f169996720f4b301c107e38435d82" 
-      className="w-24 md:w-32 drop-shadow-2xl"
-      style={{ filter: 'hue-rotate(180deg) brightness(1.6) drop-shadow(0 0 12px rgba(255, 255, 255, 0.7))' }}
-      alt="唱针"
-    />
-  </div>
-));
+interface LyricLine {
+  time: number;
+  text: string;
+}
 
-const VinylRecord = memo(({ coverUrl, isPlaying, speed = 20 }: { coverUrl: string, isPlaying: boolean, speed?: number }) => (
-  <div className="relative flex items-center justify-center">
-    <div 
-      className={`relative w-[70vw] h-[70vw] max-w-[320px] max-h-[320px] md:max-w-[420px] md:max-h-[420px] rounded-full border-[12px] border-black shadow-2xl flex items-center justify-center transition-all duration-1000 ${isPlaying ? 'animate-record' : 'animate-record animate-record-paused'}`}
-      style={{
-        background: 'radial-gradient(circle, #333 0%, #000 100%)',
-        boxShadow: '0 0 0 3px rgba(255, 255, 255, 0.5), 0 0 50px rgba(0, 210, 255, 0.3), 0 40px 100px rgba(0,0,0,1), inset 0 0 40px rgba(255,255,255,0.15)',
-        animationDuration: `${speed}s`
-      }}
-    >
-      <div className="absolute inset-0 rounded-full opacity-50" style={{ background: 'repeating-radial-gradient(circle, transparent 0, transparent 2px, #fff 3px, transparent 4px)' }}></div>
-      <div className="w-[66%] h-[66%] rounded-full overflow-hidden border-[6px] border-black shadow-[inset_0_0_40px_rgba(0,0,0,1)]">
-        <img src={coverUrl} className="w-full h-full object-cover" alt="封面" />
+// 子组件：黑胶唱片，使用 React.memo 防止高频更新导致的重绘
+const VinylDisk = memo(({ coverUrl, isPlaying, isFlipped, name, artist }: { coverUrl: string, isPlaying: boolean, isFlipped: boolean, name: string, artist: string }) => {
+  return (
+    <div className={`absolute inset-0 backface-hidden flex flex-col items-center justify-center glass-dark-morphism rounded-[4rem] md:rounded-[5.5rem] border border-white/10 shadow-[0_60px_120px_-20px_rgba(0,0,0,1)] p-8 md:p-12 group overflow-hidden ${isPlaying ? 'dj-pulse-active' : ''}`}>
+      {/* 唱针动画 */}
+      <div className="absolute top-0 right-1/4 w-32 h-40 z-50 transition-transform duration-1000 origin-top-right" style={{ transform: isPlaying ? 'rotate(15deg)' : 'rotate(-10deg)' }}>
+         <div className="w-2 h-32 bg-gradient-to-b from-zinc-400 to-zinc-700 rounded-full shadow-2xl relative">
+            <div className="absolute -bottom-4 -left-2 w-6 h-10 bg-zinc-900 rounded-lg border border-white/10 flex items-center justify-center">
+               <div className="w-1 h-4 bg-white/20 rounded-full"></div>
+            </div>
+         </div>
       </div>
-      <div className="absolute inset-[-8px] rounded-full border-2 border-white/50 opacity-80 blur-[1px] animate-pulse"></div>
+
+      {/* 唱片主体 */}
+      <div className={`relative w-[70%] aspect-square rounded-full overflow-hidden shadow-[0_0_100px_rgba(0,0,0,1)] border-[14px] border-zinc-950 transition-all duration-[3s] ${isPlaying ? 'rotate-[360deg] animate-[spin_20s_linear_infinite] ring-4 ring-red-500/20' : ''}`}>
+        <img src={coverUrl} className="w-full h-full object-cover grayscale-[10%] group-hover:grayscale-0 transition-all duration-1000" alt="Cover" />
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,transparent_45%,rgba(0,0,0,0.8)_100%)]"></div>
+        <div className="absolute inset-0 opacity-40 bg-[repeating-radial-gradient(circle_at_center,transparent,transparent_1px,rgba(255,255,255,0.05)_2px)]"></div>
+        <div className="absolute inset-0 flex items-center justify-center">
+           <div className="w-12 h-12 bg-black/90 rounded-full border border-white/10 shadow-inner flex items-center justify-center">
+              <div className={`w-2.5 h-2.5 rounded-full ${isPlaying ? 'bg-red-500 animate-pulse shadow-[0_0_12px_#E60026]' : 'bg-white/20'}`}></div>
+           </div>
+        </div>
+      </div>
+      
+      <div className="mt-8 text-center space-y-3 w-full px-6">
+        <h2 className="text-2xl md:text-4xl font-black tracking-tighter italic truncate aurora-text drop-shadow-lg">{name}</h2>
+        <div className="flex items-center justify-center space-x-3 opacity-30 group-hover:opacity-100 transition-opacity">
+          <i className="fa-solid fa-compact-disc text-red-500 animate-spin-slow"></i>
+          <p className="text-[10px] font-black text-white uppercase tracking-[0.5em]">{artist}</p>
+        </div>
+      </div>
+
+      {/* 实时 DJ 频谱模拟 - 使用 CSS 动画而非 JS 随机数生成，极大减少布局抖动 */}
+      <div className="absolute bottom-6 left-0 right-0 flex items-end justify-center space-x-1.5 h-8 px-16">
+         {Array.from({length: 20}).map((_, i) => (
+           <div key={i} className={`w-[3px] bg-gradient-to-t from-red-600 via-purple-500 to-indigo-500 rounded-full transition-all duration-300 ${isPlaying ? 'dj-bar-anim' : 'h-1.5 opacity-10'}`} style={{ animationDelay: `${i * 0.05}s`, height: `${10 + (i % 5) * 15}%` }}></div>
+         ))}
+      </div>
     </div>
-  </div>
-));
+  );
+});
 
-const MusicPlayer: React.FC<any> = ({ 
-  songs, currentIndex, onIndexChange, isPlaying, onTogglePlay, onNext, onPrev, currentTime, duration, onSeek, playbackMode, onModeChange, volume, onVolumeChange
+// 子组件：歌词显示
+const LyricEngine = memo(({ parsedLyrics, activeLyricIndex, lyricsScrollRef }: { parsedLyrics: LyricLine[], activeLyricIndex: number, lyricsScrollRef: React.RefObject<HTMLDivElement | null> }) => {
+  return (
+    <div className="absolute inset-0 backface-hidden rotate-y-180 flex flex-col glass-dark-morphism rounded-[4rem] md:rounded-[5.5rem] shadow-[0_60px_120px_-20px_rgba(0,0,0,1)] overflow-hidden p-10 border border-white/15">
+       <div className="mb-8 flex items-center justify-between opacity-30">
+         <span className="text-[10px] font-black uppercase tracking-[0.8em] text-red-500">子夜文字映射</span>
+         <i className="fa-solid fa-bolt-lightning text-lg text-indigo-500 animate-pulse"></i>
+       </div>
+       
+       <div ref={lyricsScrollRef} className="flex-1 overflow-y-auto no-scrollbar flex flex-col space-y-16 py-[20vh] px-4 scroll-smooth">
+          {parsedLyrics.length > 0 ? (
+            parsedLyrics.map((line, idx) => (
+              <p key={idx} className={`text-xl md:text-4xl font-serif-quote font-black tracking-tight transition-all duration-700 text-center leading-relaxed ${activeLyricIndex === idx ? 'text-white scale-110 opacity-100 drop-shadow-[0_0_30px_rgba(255,255,255,0.4)]' : 'text-white/5 opacity-10 blur-[2px]'}`}>{line.text}</p>
+            ))
+          ) : (
+            <div className="h-full flex flex-col items-center justify-center space-y-12 opacity-10">
+               <i className="fa-solid fa-atom text-6xl animate-spin-slow text-red-500"></i>
+               <p className="text-[10px] font-black uppercase tracking-[1em] text-center italic">映射潜意识数据块...</p>
+            </div>
+          )}
+       </div>
+       <p className="mt-8 text-center text-[8px] font-black uppercase tracking-[0.8em] opacity-20 hover:opacity-100 transition-opacity cursor-pointer">返回中心</p>
+    </div>
+  );
+});
+
+interface MusicPlayerProps {
+  songs: Song[];
+  currentIndex: number;
+  onIndexChange: (index: number) => void;
+  isPlaying: boolean;
+  onTogglePlay: () => void;
+  currentTime: number;
+  duration: number;
+  onSeek: (time: number) => void;
+  audioRef: React.RefObject<HTMLAudioElement | null>;
+  playbackMode: PlaybackMode;
+  onModeChange: (mode: PlaybackMode) => void;
+}
+
+const MusicPlayer: React.FC<MusicPlayerProps> = ({ 
+  songs, currentIndex, onIndexChange, isPlaying, onTogglePlay, currentTime, duration, onSeek, audioRef, playbackMode, onModeChange
 }) => {
-  const [isLyricsMode, setIsLyricsMode] = useState(false);
-  const [isQueueOpen, setIsQueueOpen] = useState(false);
-  const [showVolumeSlider, setShowVolumeSlider] = useState(false);
-  const [settings, setSettings] = useState({ recordSpeed: 20 });
-
-  useEffect(() => {
-    const saved = localStorage.getItem('app_config');
-    if (saved) setSettings(JSON.parse(saved));
-  }, []);
+  const lyricsScrollRef = useRef<HTMLDivElement>(null);
+  const [activeQuote, setActiveQuote] = useState(EMOTIONAL_QUOTES[0].content);
+  const [quoteKey, setQuoteKey] = useState(0); 
+  const [volume, setVolume] = useState(0.8);
+  const [isFlipped, setIsFlipped] = useState(false); 
+  const [showPlaylist, setShowPlaylist] = useState(false);
+  const [showShareModal, setShowShareModal] = useState(false);
+  const [playlistPage, setPlaylistPage] = useState(0);
+  const [isSoulLoading, setIsSoulLoading] = useState(false);
+  const PAGE_SIZE = 6;
 
   const currentSong = songs[currentIndex];
 
-  const quote = useMemo(() => {
-    if (!currentSong) return '';
-    const hash = currentSong.id.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
-    return EMOTIONAL_QUOTES[hash % EMOTIONAL_QUOTES.length].content;
-  }, [currentSong]);
+  const handleMagicSpark = async () => {
+    setIsSoulLoading(true);
+    try {
+      if (currentSong) {
+        const soulQuote = await generateSoulQuote(currentSong.name, currentSong.artist);
+        setActiveQuote(soulQuote);
+      } else {
+        const randomIdx = Math.floor(Math.random() * EMOTIONAL_QUOTES.length);
+        setActiveQuote(EMOTIONAL_QUOTES[randomIdx].content);
+      }
+    } catch (e) {
+      const randomIdx = Math.floor(Math.random() * EMOTIONAL_QUOTES.length);
+      setActiveQuote(EMOTIONAL_QUOTES[randomIdx].content);
+    } finally {
+      setIsSoulLoading(false);
+      setQuoteKey(prev => prev + 1);
+    }
+  };
 
-  const togglePlaybackMode = () => {
-    const modes = [PlaybackMode.SEQUENCE, PlaybackMode.REPEAT_ONE, PlaybackMode.SHUFFLE];
+  const cyclePlaybackMode = () => {
+    const modes = [PlaybackMode.SEQUENCE, PlaybackMode.SHUFFLE, PlaybackMode.REPEAT_ONE];
     const nextIdx = (modes.indexOf(playbackMode) + 1) % modes.length;
     onModeChange(modes[nextIdx]);
   };
 
-  const modeIcon = useMemo(() => {
-    switch(playbackMode) {
-      case PlaybackMode.SHUFFLE: return 'fa-shuffle';
-      case PlaybackMode.REPEAT_ONE: return 'fa-repeat';
-      default: return 'fa-arrow-rotate-right';
+  const parsedLyrics = useMemo<LyricLine[]>(() => {
+    if (!currentSong?.lyrics) return [];
+    return currentSong.lyrics.split('\n').map(line => {
+      const match = line.match(/\[(\d{2}):(\d{2})\]/);
+      if (match) {
+        return { 
+          time: parseInt(match[1]) * 60 + parseInt(match[2]), 
+          text: line.replace(/\[\d{2}:\d{2}\]/, '').trim() 
+        };
+      }
+      return { time: -1, text: line.trim() };
+    }).filter(l => l.text !== '');
+  }, [currentSong?.lyrics]);
+
+  const activeLyricIndex = useMemo(() => {
+    for (let i = parsedLyrics.length - 1; i >= 0; i--) {
+      if (currentTime >= parsedLyrics[i].time && parsedLyrics[i].time !== -1) return i;
     }
-  }, [playbackMode]);
+    return -1;
+  }, [currentTime, parsedLyrics]);
+
+  useEffect(() => {
+    if (lyricsScrollRef.current && activeLyricIndex !== -1) {
+      const activeEl = lyricsScrollRef.current.children[activeLyricIndex] as HTMLElement;
+      if (activeEl) {
+        lyricsScrollRef.current.scrollTo({
+          top: activeEl.offsetTop - lyricsScrollRef.current.offsetHeight / 2,
+          behavior: 'smooth'
+        });
+      }
+    }
+  }, [activeLyricIndex]);
+
+  const totalPages = Math.ceil(songs.length / PAGE_SIZE);
+  const paginatedPlaylist = useMemo(() => {
+    return songs.slice(playlistPage * PAGE_SIZE, (playlistPage + 1) * PAGE_SIZE);
+  }, [songs, playlistPage]);
 
   if (!currentSong) return null;
 
   return (
-    <div className="flex-1 flex flex-col h-full overflow-hidden relative bg-transparent">
-      <div className="bg-immersive" style={{ backgroundImage: `url(${currentSong.coverUrl})` }}></div>
+    <div className="h-full flex flex-col relative overflow-hidden select-none bg-transparent text-white">
       
-      <header className="flex-[1.5] flex items-center justify-center px-10 pt-10 z-10">
-        <div className="max-w-2xl bg-black/70 backdrop-blur-3xl border-2 border-white/50 rounded-[2rem] p-8 text-center shadow-[0_30px_80px_rgba(0,0,0,1)] animate-in fade-in slide-in-from-top-4 duration-1000">
-          <p className="text-sm md:text-lg font-serif-quote italic text-white leading-relaxed tracking-wider high-light">
-            “{quote}”
-          </p>
-        </div>
+      {/* 顶部热评卡片 */}
+      <header className="h-[25%] flex flex-col items-center justify-center z-[60] px-6 md:px-20 mt-4">
+         <div 
+          key={quoteKey} 
+          onClick={handleMagicSpark} 
+          className={`animate-[fadeIn_1.2s] group cursor-pointer transition-all duration-700 w-full max-w-2xl bg-white/[0.03] border border-white/10 rounded-3xl p-6 md:p-10 backdrop-blur-xl shadow-2xl relative overflow-hidden ${isSoulLoading ? 'opacity-30 scale-95 blur-sm' : 'opacity-100 scale-100 hover:bg-white/[0.05]'}`}
+         >
+            <div className="flex items-center space-x-4 mb-6">
+               <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-zinc-800 to-zinc-600 border border-white/20 flex items-center justify-center overflow-hidden">
+                  <i className="fa-solid fa-user text-white/40"></i>
+               </div>
+               <div className="flex flex-col">
+                  <span className="text-[11px] font-black text-white/80 tracking-widest uppercase italic">云村匿名映射者</span>
+                  <span className="text-[8px] font-bold text-white/20 uppercase tracking-[0.2em] mt-1 italic">Atmosphere Trace System V4</span>
+               </div>
+               <div className="ml-auto flex items-center space-x-2 text-white/20 group-hover:text-pink-500/60 transition-colors">
+                  <i className="fa-solid fa-heart text-[10px]"></i>
+                  <span className="text-[9px] font-black tabular-nums">1.2w</span>
+               </div>
+            </div>
+            
+            <p className="text-xl md:text-2xl font-serif-quote font-black tracking-tight italic leading-relaxed text-white drop-shadow-md px-4 relative">
+              {activeQuote}
+            </p>
+            
+            <div className="mt-6 flex items-center justify-between">
+               <div className="flex items-center space-x-3 opacity-20">
+                  <span className="h-[1px] w-8 bg-indigo-500"></span>
+                  <span className="text-[7px] font-black uppercase tracking-widest">子夜热评 · Night Echo</span>
+               </div>
+               <i className="fa-solid fa-sparkles text-indigo-400/40 text-sm group-hover:animate-pulse"></i>
+            </div>
+         </div>
       </header>
 
-      <main 
-        className="flex-[5] flex flex-col items-center justify-center relative z-20 cursor-pointer overflow-hidden"
-        onClick={() => setIsLyricsMode(!isLyricsMode)}
-      >
-        <div className={`transition-all duration-1000 w-full h-full flex flex-col items-center justify-center ${isLyricsMode ? 'opacity-0 scale-90 translate-y-10 pointer-events-none absolute' : 'opacity-100 scale-100 translate-y-0'}`}>
-            <div className="relative pt-10">
-              <StylusNeedle isPlaying={isPlaying} />
-              <VinylRecord coverUrl={currentSong.coverUrl} isPlaying={isPlaying} speed={settings.recordSpeed} />
-              <div className="mt-16 text-center space-y-4">
-                <h2 className="text-5xl md:text-7xl font-black italic tracking-tighter text-white aurora-text drop-shadow-[0_0_25px_rgba(255,255,255,0.8)]">{currentSong.name}</h2>
-                <div className="flex items-center justify-center gap-6">
-                   <div className="h-[3px] w-10 bg-white/80"></div>
-                   <p className="text-[12px] font-black uppercase tracking-[0.7em] text-white italic high-light">{currentSong.artist}</p>
-                   <div className="h-[3px] w-10 bg-white/80"></div>
-                </div>
-              </div>
-            </div>
-        </div>
+      {/* 核心展示区 */}
+      <main className="h-[50%] flex flex-col items-center justify-center p-4 relative perspective-3000 z-50">
+        <div 
+          className={`relative w-full max-w-[360px] md:max-w-[480px] h-full transition-transform duration-[1.2s] cubic-bezier(0.15, 0.85, 0.15, 1) preserve-3d cursor-pointer ${isFlipped ? 'rotate-y-180' : ''}`}
+          onClick={() => setIsFlipped(!isFlipped)}
+        >
+          {/* 正面：沉浸黑胶 (已分离出 VinylDisk 子组件以优化性能) */}
+          <VinylDisk 
+            coverUrl={currentSong.coverUrl} 
+            isPlaying={isPlaying} 
+            isFlipped={isFlipped}
+            name={currentSong.name}
+            artist={currentSong.artist}
+          />
 
-        <div className={`transition-all duration-1000 w-full h-full flex flex-col items-center justify-center px-10 ${!isLyricsMode ? 'opacity-0 scale-110 -translate-y-10 pointer-events-none absolute' : 'opacity-100 scale-100 translate-y-0'}`}>
-            <div className="w-full max-w-4xl flex flex-col items-center space-y-14">
-                {currentSong.lyrics ? (
-                    <div className="space-y-14 text-center w-full max-h-[55vh] overflow-y-auto custom-scrollbar px-10 py-8">
-                        {currentSong.lyrics.split('\n').map((line: string, i: number) => {
-                            const text = line.replace(/\[\d+:\d+\.\d+\]|\[\d+:\d+\]/, '').trim();
-                            if (!text) return null;
-                            return (
-                                <p key={i} className={`text-3xl md:text-5xl font-serif-quote italic leading-relaxed transition-all duration-700 ${i === 0 ? 'text-white font-black scale-110 high-light drop-shadow-[0_0_20px_rgba(255,255,255,1)]' : 'text-white/50 hover:text-white'}`}>
-                                    {text}
-                                </p>
-                            );
-                        })}
-                    </div>
-                ) : (
-                    <div className="space-y-12 text-center animate-pulse">
-                        <p className="text-white font-black text-5xl md:text-6xl font-serif-quote italic high-light">“未探测到歌词信号”</p>
-                        <div className="h-[3px] w-48 bg-gradient-to-r from-transparent via-white to-transparent mx-auto"></div>
-                        <p className="text-white tracking-[0.8em] uppercase text-[12px] font-black italic">No Lyric Resonance Captured in This Frequency</p>
-                    </div>
-                )}
-                
-                <div className="mt-12 flex flex-col items-center gap-6 group">
-                    <div className="w-16 h-16 rounded-full border-2 border-white/60 flex items-center justify-center group-hover:bg-white/20 group-hover:border-white transition-all shadow-[0_0_40px_rgba(0,0,0,0.8)]">
-                        <i className="fa-solid fa-compact-disc text-white group-hover:animate-spin text-xl"></i>
-                    </div>
-                    <p className="text-[11px] font-black uppercase tracking-[0.7em] text-white italic group-hover:scale-110 transition-all">点击返回唱片视图</p>
-                </div>
-            </div>
+          {/* 背面：歌词映射 (已分离出 LyricEngine 子组件) */}
+          <LyricEngine 
+            parsedLyrics={parsedLyrics}
+            activeLyricIndex={activeLyricIndex}
+            lyricsScrollRef={lyricsScrollRef}
+          />
         </div>
       </main>
 
-      <footer className="flex-[3] flex flex-col items-center justify-center px-8 space-y-10 pb-16 z-30">
-        <div className="w-full max-w-3xl space-y-10 bg-black/60 backdrop-blur-3xl p-12 rounded-[3.5rem] border-2 border-white/40 shadow-[0_40px_120px_rgba(0,0,0,1)]">
-          <div className="flex items-center gap-10">
-            <span className="text-[11px] font-mono text-white w-16 text-right high-light">{Math.floor(currentTime/60)}:{(Math.floor(currentTime%60)).toString().padStart(2,'0')}</span>
-            <div className="flex-1 h-[6px] bg-white/20 rounded-full relative group overflow-hidden border border-white/10">
-              <input 
-                type="range" min="0" max={duration || 0} step="0.1" value={currentTime} 
-                onChange={(e) => { e.stopPropagation(); onSeek(parseFloat(e.target.value)); }} 
-                className="absolute inset-0 w-full h-full opacity-0 z-40 cursor-pointer" 
-              />
-              <div className="absolute left-0 top-0 h-full bg-white transition-all duration-300 shadow-[0_0_25px_rgba(255,255,255,1)]" style={{ width: `${(currentTime/(duration||1))*100}%` }}></div>
-            </div>
-            <span className="text-[11px] font-mono text-white w-16 high-light">{duration ? `${Math.floor(duration/60)}:${(Math.floor(duration%60)).toString().padStart(2,'0')}` : '0:00'}</span>
+      {/* 底部控制中心 */}
+      <footer className="h-[25%] flex flex-col items-center justify-center px-6 md:px-24 pb-8 z-[60]">
+        
+        {/* 进度流 */}
+        <div className="w-full max-w-4xl flex items-center gap-6 md:gap-10 mb-8 group/prog">
+          <span className="text-[10px] font-black text-white/20 tabular-nums w-12 text-center">{Math.floor(currentTime/60)}:{Math.floor(currentTime%60).toString().padStart(2,'0')}</span>
+          <div className="flex-1 h-1.5 bg-white/5 rounded-full relative overflow-hidden group-hover/prog:h-2.5 transition-all duration-300 ring-1 ring-white/5">
+            <input 
+              type="range" min="0" max={duration || 0} step="0.1" 
+              value={currentTime} onChange={(e) => onSeek(parseFloat(e.target.value))}
+              className="absolute inset-0 w-full h-full opacity-0 z-40 cursor-pointer"
+            />
+            <div className="absolute left-0 top-0 h-full bg-gradient-to-r from-red-600 to-indigo-600 shadow-[0_0_20px_#E60026] transition-all duration-300" style={{ width: `${(currentTime/duration)*100}%` }}></div>
+          </div>
+          <span className="text-[10px] font-black text-white/20 tabular-nums w-12 text-center">{Math.floor(duration/60)}:{Math.floor(duration%60).toString().padStart(2,'0')}</span>
+        </div>
+
+        {/* 控制按钮 */}
+        <div className="w-full max-w-6xl flex items-center justify-between">
+          
+          <div className="flex items-center space-x-6 md:space-x-10">
+            <button 
+              onClick={cyclePlaybackMode} 
+              className={`w-12 h-12 flex items-center justify-center rounded-[1.5rem] transition-all ${playbackMode !== PlaybackMode.SEQUENCE ? 'bg-red-500/20 text-red-500 scale-110 shadow-lg' : 'text-white/20 hover:text-white'}`}
+            >
+              <i className={`fa-solid ${playbackMode === PlaybackMode.SHUFFLE ? 'fa-shuffle' : playbackMode === PlaybackMode.REPEAT_ONE ? 'fa-rotate-left' : 'fa-list-ol'} text-base md:text-lg`}></i>
+            </button>
+            <button 
+              onClick={() => setShowPlaylist(!showPlaylist)}
+              className={`w-12 h-12 flex items-center justify-center rounded-[1.5rem] transition-all ${showPlaylist ? 'bg-white text-black scale-110 shadow-2xl' : 'text-white/20 hover:text-white'}`}
+            >
+              <i className="fa-solid fa-bars-staggered text-base md:text-lg"></i>
+            </button>
           </div>
 
-          <div className="flex items-center justify-between w-full">
-            <div className="flex-1 flex justify-start">
-              <button 
-                onClick={(e) => { e.stopPropagation(); togglePlaybackMode(); }} 
-                className={`transition-all p-6 rounded-2xl hover:bg-white/30 active:scale-90 border-2 ${playbackMode !== PlaybackMode.SEQUENCE ? 'text-white border-white' : 'text-white/60 border-transparent'}`}
-              >
-                <i className={`fa-solid ${modeIcon} text-2xl`}></i>
-              </button>
-            </div>
+          <div className="flex items-center gap-10 md:gap-16">
+            <button onClick={() => onIndexChange((currentIndex - 1 + songs.length) % songs.length)} className="text-3xl text-white/10 hover:text-white transition-all hover:scale-125 hover:-rotate-12"><i className="fa-solid fa-backward-step"></i></button>
+            <button 
+              onClick={onTogglePlay} 
+              className={`w-20 h-20 md:w-28 md:h-28 rounded-[2.5rem] md:rounded-[3.5rem] bg-white text-black flex items-center justify-center shadow-[0_30px_60px_-10px_rgba(255,255,255,0.3)] hover:scale-110 active:scale-95 transition-all group ${isPlaying ? 'ring-4 md:ring-8 ring-red-500/10' : ''}`}
+            >
+              <i className={`fa-solid ${isPlaying ? 'fa-pause' : 'fa-play ml-1.5'} text-2xl md:text-4xl`}></i>
+            </button>
+            <button onClick={() => onIndexChange((currentIndex + 1) % songs.length)} className="text-3xl text-white/10 hover:text-white transition-all hover:scale-125 hover:rotate-12"><i className="fa-solid fa-forward-step"></i></button>
+          </div>
 
-            <div className="flex items-center gap-12 md:gap-24">
-              <button onClick={(e) => { e.stopPropagation(); onPrev(); }} className="text-5xl text-white hover:scale-125 transition-all active:scale-90"><i className="fa-solid fa-backward-step"></i></button>
-              <button 
-                onClick={(e) => { e.stopPropagation(); onTogglePlay(); }} 
-                className="w-28 h-28 rounded-full bg-white text-black border-2 border-white flex items-center justify-center text-6xl hover:bg-white/90 active:scale-95 transition-all shadow-[0_0_60px_rgba(255,255,255,0.4)] relative overflow-hidden group"
-              >
-                <i className={`fa-solid ${isPlaying ? 'fa-pause' : 'fa-play ml-3'} relative z-10`}></i>
-              </button>
-              <button onClick={(e) => { e.stopPropagation(); onNext(); }} className="text-5xl text-white hover:scale-125 transition-all active:scale-90"><i className="fa-solid fa-forward-step"></i></button>
-            </div>
-
-            <div className="flex-1 flex justify-end items-center gap-6 relative">
-              <div className="relative group">
-                <button 
-                  onMouseEnter={() => setShowVolumeSlider(true)}
-                  className="p-6 text-white hover:scale-110 transition-all border-2 border-transparent"
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  <i className={`fa-solid ${volume === 0 ? 'fa-volume-xmark' : volume < 0.5 ? 'fa-volume-low' : 'fa-volume-high'} text-2xl`}></i>
-                </button>
-                
-                {showVolumeSlider && (
-                  <div 
-                    onMouseLeave={() => setShowVolumeSlider(false)}
-                    className="absolute bottom-full mb-10 left-1/2 -translate-x-1/2 w-14 h-52 bg-[#0a0f19] border-2 border-white/40 rounded-[2.5rem] p-6 flex flex-col items-center justify-center animate-in fade-in slide-in-from-bottom-2 duration-300 shadow-[0_30px_80px_rgba(0,0,0,1)] z-[100]"
-                  >
-                    <input 
-                      type="range" min="0" max="1" step="0.01" value={volume} 
-                      onChange={(e) => onVolumeChange(parseFloat(e.target.value))}
-                      onClick={(e) => e.stopPropagation()}
-                      className="w-32 h-2 appearance-none bg-white/30 rounded-full cursor-pointer -rotate-90 origin-center absolute accent-white"
-                    />
-                  </div>
-                )}
+          <div className="flex items-center space-x-6 md:space-x-10">
+            <button 
+              onClick={() => setShowShareModal(true)}
+              className="w-12 h-12 flex items-center justify-center rounded-[1.5rem] text-pink-500 bg-pink-500/10 hover:bg-pink-500/30 transition-all border border-pink-500/20"
+            >
+              <i className="fa-solid fa-share-nodes text-lg"></i>
+            </button>
+            <div className="hidden lg:flex items-center space-x-4 bg-white/5 p-3 rounded-[1.2rem] border border-white/5">
+              <i className="fa-solid fa-volume-high text-white/20 text-xs"></i>
+              <div className="w-20 h-1 bg-white/10 rounded-full relative overflow-hidden">
+                <input 
+                  type="range" min="0" max="1" step="0.01" value={volume} 
+                  onChange={(e) => { const v = parseFloat(e.target.value); setVolume(v); if(audioRef.current) audioRef.current.volume = v; }}
+                  className="absolute inset-0 w-full h-full opacity-0 z-40 cursor-pointer"
+                />
+                <div className="absolute left-0 top-0 h-full bg-red-600" style={{ width: `${volume*100}%` }}></div>
               </div>
-
-              <button 
-                onClick={(e) => { e.stopPropagation(); setIsQueueOpen(!isQueueOpen); }} 
-                className={`p-6 transition-all hover:bg-white/30 rounded-2xl border-2 ${isQueueOpen ? 'text-white border-white' : 'text-white/60 border-transparent'}`}
-              >
-                <i className="fa-solid fa-list-ul text-2xl"></i>
-              </button>
             </div>
           </div>
         </div>
       </footer>
 
-      {isQueueOpen && (
-        <div className="absolute inset-0 z-[500] flex justify-end" onClick={(e) => e.stopPropagation()}>
-          <div className="absolute inset-0 bg-black/85 backdrop-blur-md" onClick={() => setIsQueueOpen(false)}></div>
-          <div className="relative w-full max-w-lg h-full bg-[#050a14] border-l-2 border-white/40 shadow-[0_0_150px_rgba(0,0,0,1)] flex flex-col animate-in slide-in-from-right duration-500">
-            <header className="p-14 border-b-2 border-white/20 flex items-center justify-between bg-white/5">
-              <div>
-                <h3 className="text-3xl font-black italic aurora-text high-light">播放队列</h3>
-                <p className="text-[12px] text-white uppercase font-black tracking-[0.6em] mt-4 italic">Memory Core · {songs.length} Universe Nodes</p>
-              </div>
-              <button onClick={() => setIsQueueOpen(false)} className="w-14 h-14 rounded-[1.5rem] bg-white text-black flex items-center justify-center hover:bg-white/90 transition-all border-2 border-white"><i className="fa-solid fa-xmark text-xl"></i></button>
-            </header>
-            
-            <div className="flex-1 overflow-y-auto custom-scrollbar p-10 space-y-4 pb-36">
-              {songs.map((song: Song, idx: number) => (
-                <div 
-                  key={song.id} 
-                  onClick={() => { onIndexChange(idx); setIsQueueOpen(false); }}
-                  className={`flex items-center gap-8 p-8 rounded-[2.5rem] transition-all cursor-pointer group border-2 ${currentIndex === idx ? 'bg-white/20 border-white shadow-[0_20px_60px_rgba(255,255,255,0.1)]' : 'hover:bg-white/10 border-transparent'}`}
-                >
-                  <span className={`w-12 text-[12px] font-mono tabular-nums ${currentIndex === idx ? 'text-white high-light font-black' : 'text-white/60'}`}>
-                    {currentIndex === idx ? <i className="fa-solid fa-signal animate-pulse"></i> : (idx + 1).toString().padStart(2, '0')}
-                  </span>
-                  <div className="flex-1 truncate">
-                    <p className={`text-lg font-black truncate ${currentIndex === idx ? 'text-white high-light' : 'text-white'}`}>{song.name}</p>
-                    <p className={`text-[11px] font-bold uppercase tracking-widest mt-2 italic truncate transition-colors ${currentIndex === idx ? 'text-white' : 'text-white/50'}`}>{song.artist}</p>
+      {/* 播放清单模态层 (保持原有逻辑) */}
+      {showPlaylist && (
+        <div className="absolute right-6 md:right-16 top-[10%] bottom-[10%] w-[320px] md:w-[420px] glass-dark-morphism rounded-[3.5rem] shadow-3xl z-[500] p-10 animate-[fadeIn_0.5s] border border-white/20 flex flex-col">
+           <div className="flex items-center justify-between mb-10">
+              <span className="text-[14px] font-black uppercase tracking-[0.8em] aurora-text">序列映射</span>
+              <button onClick={() => setShowPlaylist(false)} className="w-10 h-10 flex items-center justify-center rounded-full bg-white/5 text-white/30 hover:text-white transition-all"><i className="fa-solid fa-xmark text-sm"></i></button>
+           </div>
+           
+           <div className="flex-1 overflow-y-auto no-scrollbar space-y-6 pr-2">
+              {paginatedPlaylist.map((s, idx) => {
+                const globalIdx = playlistPage * PAGE_SIZE + idx;
+                return (
+                  <div key={s.id} onClick={() => onIndexChange(globalIdx)} className={`flex items-center space-x-6 p-4 rounded-[2rem] cursor-pointer transition-all ${currentIndex === globalIdx ? 'bg-red-500/20 border border-red-500/30 text-white scale-[1.05]' : 'hover:bg-white/5 text-white/30'}`}>
+                    <div className="w-14 h-14 rounded-2xl overflow-hidden flex-shrink-0 shadow-lg border border-white/10">
+                      <img src={s.coverUrl} className="w-full h-full object-cover" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className={`text-[13px] font-black truncate ${currentIndex === globalIdx ? 'text-white' : 'text-white/60'}`}>{s.name}</p>
+                      <p className="text-[9px] font-bold opacity-30 truncate tracking-widest mt-1 italic">{s.artist}</p>
+                    </div>
                   </div>
-                  {currentIndex === idx && (
-                      <div className="flex gap-2">
-                          <div className="w-2 h-5 bg-white animate-[bounce_0.6s_infinite] shadow-[0_0_10px_rgba(255,255,255,0.8)]"></div>
-                          <div className="w-2 h-8 bg-white animate-[bounce_0.8s_infinite] shadow-[0_0_10px_rgba(255,255,255,0.8)]"></div>
-                          <div className="w-2 h-4 bg-white animate-[bounce_1s_infinite] shadow-[0_0_10px_rgba(255,255,255,0.8)]"></div>
-                      </div>
-                  )}
-                </div>
-              ))}
-            </div>
-          </div>
+                );
+              })}
+           </div>
+
+           <div className="mt-10 flex items-center justify-between px-2 pt-6 border-t border-white/5">
+              <button disabled={playlistPage === 0} onClick={() => setPlaylistPage(p => p - 1)} className="w-12 h-12 flex items-center justify-center rounded-2xl bg-white/5 text-white/20 hover:text-white disabled:opacity-5 transition-all"><i className="fa-solid fa-chevron-left"></i></button>
+              <span className="text-[12px] font-black text-white/30 tracking-widest uppercase">{playlistPage + 1} / {totalPages}</span>
+              <button disabled={playlistPage >= totalPages - 1} onClick={() => setPlaylistPage(p => p + 1)} className="w-12 h-12 flex items-center justify-center rounded-2xl bg-white/5 text-white/20 hover:text-white disabled:opacity-5 transition-all"><i className="fa-solid fa-chevron-right"></i></button>
+           </div>
         </div>
       )}
     </div>

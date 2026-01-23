@@ -1,126 +1,106 @@
 
 import { Song } from "../types";
 
-/**
- * 发现频率核心服务 V5 - 全球分布式波段
- * 使用多个公开节点作为负载均衡，确保即使部分节点宕机也能获取完整音轨。
- */
-
-// 公开的 API 节点集群，用于冗余备份
-const API_NODES = [
-  'https://api.injahow.cn/meting/',
-  'https://meting-api.isoyu.com/',
-  'https://api.i-meto.com/meting/api',
+// 代理池
+const PROXIES = [
+  'https://api.allorigins.win/get?url=',
+  'https://api.codetabs.com/v1/proxy?quest='
 ];
+const DEEZER_BASE = 'https://api.deezer.com';
 
-// 智能波段映射
-const SEARCH_MAP: Record<string, string> = {
-  '财经人物': '财经 故事',
-  '空头支票': '承诺 遗憾',
-  '这辈子': '感慨 往事 纯音乐',
-  '深夜 DJ': 'DJ Remix 流行',
-  '江湖往事': '民谣 江湖',
-  '遗憾民谣': '民谣 孤独'
+interface ApiParams {
+  index?: number;
+  limit?: number;
+  access_token?: string;
+  request_method?: 'GET' | 'POST' | 'DELETE';
+  [key: string]: any;
+}
+
+export const getToken = () => localStorage.getItem('dz_access_token');
+export const setToken = (token: string, expires: number) => {
+  localStorage.setItem('dz_access_token', token);
+  localStorage.setItem('dz_token_expires', (Date.now() + expires * 1000).toString());
+};
+export const clearToken = () => {
+  localStorage.removeItem('dz_access_token');
+  localStorage.removeItem('dz_token_expires');
 };
 
-const FALLBACK_COVERS = [
-    'https://images.unsplash.com/photo-1493225255756-d9584f8606e9?q=80&w=800',
-    'https://images.unsplash.com/photo-1470225620780-dba8ba36b745?q=80&w=800',
-    'https://images.unsplash.com/photo-1514525253361-bee87184f830?q=80&w=800'
-];
-
-/**
- * 带有自动降级功能的 fetch 包装器
- */
-const fetchWithFallback = async (params: string) => {
-    let lastError = null;
-    for (const node of API_NODES) {
-        try {
-            const separator = node.includes('?') ? '&' : '?';
-            const url = `${node}${separator}${params}`;
-            const response = await fetch(url, { method: 'GET', mode: 'cors' });
-            if (!response.ok) continue;
-            const data = await response.json();
-            if (data) return { data, node }; // 返回成功的数据和所用节点
-        } catch (e) {
-            lastError = e;
-            console.warn(`Node ${node} failed, trying next...`);
-        }
-    }
-    throw lastError || new Error("All frequency nodes are unreachable.");
-};
-
-/**
- * 核心检索逻辑：从集群节点搜索
- */
-export const searchGlobalMusic = async (query: string, limit = 50): Promise<{data: Song[], total: number}> => {
-  if (!query) return { data: [], total: 0 };
-  const searchTerm = SEARCH_MAP[query] || query;
-  
-  try {
-    // 默认尝试网易云源，失败后自动由 fetchWithFallback 切换节点或尝试备用源逻辑
-    const { data } = await fetchWithFallback(`server=netease&type=search&id=${encodeURIComponent(searchTerm)}`);
-    
-    if (!Array.isArray(data) || data.length === 0) {
-        // 如果搜不到结果，切换至 Migu 源（版权极广）
-        const miguRes = await fetchWithFallback(`server=migu&type=search&id=${encodeURIComponent(searchTerm)}`);
-        return processResults(Array.isArray(miguRes.data) ? miguRes.data : [], query, 'migu');
-    }
-
-    return processResults(data, query, 'netease');
-  } catch (error) {
-    console.error("Signal Capture Error (All Nodes Failed):", error);
-    return { data: [], total: 0 };
+const apiRequest = async (path: string, params: ApiParams = {}): Promise<any> => {
+  const token = getToken();
+  const urlParams = new URLSearchParams();
+  const combinedParams = { ...params };
+  if (token && !combinedParams.access_token) {
+    combinedParams.access_token = token;
   }
+  Object.entries(combinedParams).forEach(([key, value]) => {
+    if (value !== undefined) urlParams.append(key, String(value));
+  });
+  const queryString = urlParams.toString();
+  const fullPath = `${path}${queryString ? (path.includes('?') ? '&' : '?') + queryString : ''}`;
+  const rawTargetUrl = `${DEEZER_BASE}${fullPath}`;
+
+  for (const proxyBase of PROXIES) {
+    try {
+      const targetUrl = proxyBase.includes('allorigins') ? encodeURIComponent(rawTargetUrl) : rawTargetUrl;
+      const response = await fetch(proxyBase + targetUrl, { headers: { 'Accept': 'application/json' } });
+      if (!response.ok) continue;
+      const result = await response.json();
+      let data = proxyBase.includes('allorigins') ? (result.contents ? JSON.parse(result.contents) : null) : result;
+      if (data?.error) {
+        if (data.error.code === 2000 || data.error.code === 3000) clearToken();
+        return null;
+      }
+      return data;
+    } catch (error) { continue; }
+  }
+  return null;
+};
+
+const formatTrack = (item: any): Song => ({
+    id: `dz-${item.id}`,
+    name: item.title,
+    artist: item.artist.name,
+    url: item.preview, 
+    coverUrl: item.album.cover_xl || item.album.cover_big,
+    isExternal: true,
+    lyrics: ''
+});
+
+export const searchGlobalMusic = async (query: string, index = 0, limit = 20): Promise<{data: Song[], total: number}> => {
+  if (!query) return { data: [], total: 0 };
+  const response = await apiRequest('/search', { q: query, index, limit });
+  if (!response || !response.data) return { data: [], total: 0 };
+  return { data: response.data.map(formatTrack), total: response.total || 0 };
+};
+
+export const fetchMyHistory = async (limit = 50): Promise<Song[]> => {
+    const response = await apiRequest('/user/me/history', { limit });
+    if (!response || !response.data) return [];
+    return response.data.map(formatTrack);
+};
+
+export const fetchMyPlaylists = async (limit = 50): Promise<any[]> => {
+    const response = await apiRequest('/user/me/playlists', { limit });
+    return response?.data || [];
+};
+
+export const fetchTrendingMusic = async (index = 0, limit = 20): Promise<Song[]> => {
+  const response = await apiRequest('/chart/0/tracks', { index, limit });
+  if (!response || !response.data) return [];
+  return response.data.map(formatTrack);
+};
+
+export const fetchMyProfile = async () => {
+  return await apiRequest('/user/me');
 };
 
 /**
- * 物理链路解析：使用节点集群解析真实 URL
+ * 抓取在线歌词：移除 AI，改为占位内容或待后续扩展其他 API
  */
-export const resolveMusicUrl = async (song: Song): Promise<string> => {
-    if (!song.id.startsWith('global-')) return song.url;
-    
-    try {
-        const parts = song.id.split('-');
-        const server = parts[1];
-        const id = parts[2];
-        
-        // 同样使用节点集群进行 URL 解析
-        const { data } = await fetchWithFallback(`server=${server}&type=url&id=${id}`);
-        
-        if (data && data.url) {
-            // 解决混杂内容问题，强制 HTTPS
-            return data.url.replace(/^http:/, 'https:');
-        }
-        
-        // 如果获取失败，尝试通过 type=song 获取详情中可能包含的 url
-        const detail = await fetchWithFallback(`server=${server}&type=song&id=${id}`);
-        if (detail.data && detail.data[0]?.url) {
-            return detail.data[0].url.replace(/^http:/, 'https:');
-        }
-
-        throw new Error("No playback link captured.");
-    } catch (e) {
-        console.error("Resolve failed on all nodes:", e);
-        return song.url; 
-    }
-};
-
-const processResults = (raw: any[], originalTag: string, server: string): {data: Song[], total: number} => {
-    const songs: Song[] = raw.map((item: any, idx: number) => ({
-        id: `global-${server}-${item.id || item.songid}`,
-        name: item.title || item.name || '未知频率',
-        artist: item.author || item.artist || '佚名',
-        url: '', // 初始留空，播放时通过 resolveMusicUrl 解析
-        coverUrl: item.pic || item.cover || FALLBACK_COVERS[idx % FALLBACK_COVERS.length],
-        isExternal: true,
-        lyrics: `[00:00] 正在捕获全量波段...\n[00:05] “地球虽大，但我总能为你找到这一首回响。”`,
-        tags: [originalTag, '全量波段']
-    }));
-    return { data: songs, total: songs.length };
-};
-
-export const fetchTrendingMusic = async (limit = 32): Promise<Song[]> => {
-  const { data } = await searchGlobalMusic('这辈子', limit);
-  return data;
+export const fetchLyricsOnline = async (artist: string, title: string): Promise<string | null> => {
+  return `[00:00] 暂无歌词数据
+[00:05] 歌曲: ${title}
+[00:10] 艺术家: ${artist}
+[00:15] “我这辈子得到了很多空头支票，你的永远也是其中一张。”`;
 };

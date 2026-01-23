@@ -1,143 +1,160 @@
 
-import React, { useState, useMemo, useRef } from 'react';
-import { Song, Video, Playlist, NotificationType } from '../types';
-import { deleteSong, deleteFile, uploadMediaV3 } from '../services/s3Service';
-import { getPlaylists, createPlaylist } from '../services/playlistService';
-import { S3_CONFIG } from '../constants';
+import React, { useState, useMemo } from 'react';
+import { Song, Video, NotificationType } from '../types';
+import { deleteSong, deleteFile } from '../services/s3Service';
 
-const MusicManager: React.FC<any> = ({ songs, videos, onRefresh, onNotify, onViewDetails, onViewVideoDetails, onViewPlaylist }) => {
-  const [activeTab, setActiveTab] = useState<'music' | 'videos' | 'playlists'>('music');
-  const [query, setQuery] = useState('');
-  const [isCreating, setIsCreating] = useState(false);
-  const [isUploading, setIsUploading] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
+interface MusicManagerProps {
+  songs: Song[];
+  videos: Video[];
+  onRefresh: () => void;
+  onNotify: (message: string, type: NotificationType) => void;
+  onViewDetails: (song: Song) => void;
+  onViewVideoDetails: (video: Video) => void;
+}
 
-  const data = useMemo(() => {
-    let base = activeTab === 'music' ? songs : activeTab === 'videos' ? videos : getPlaylists();
-    if (query) {
-      const q = query.toLowerCase();
-      base = base.filter((item: any) => (item.name || '').toLowerCase().includes(q) || (item.artist || '').toLowerCase().includes(q));
-    }
-    return base;
-  }, [activeTab, songs, videos, query]);
+const MusicManager: React.FC<MusicManagerProps> = ({ 
+  songs, videos, onRefresh, onNotify, onViewDetails, onViewVideoDetails 
+}) => {
+  const [activeTab, setActiveTab] = useState<'music' | 'videos'>('music');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [selectedTag, setSelectedTag] = useState('全部');
 
-  const handleDelete = async (e: any, item: any) => {
-    e.stopPropagation();
-    if (!confirm('确定要从云端物理抹除此映射记录吗？此操作无法撤销。')) return;
-    try {
-      const pathParts = item.url.split(`public/${S3_CONFIG.bucketName}/`);
-      if (pathParts.length < 2) throw new Error("无效的云端资源路径");
-      const path = decodeURIComponent(pathParts[1]);
+  const MOOD_TAGS = [
+    { label: '全部', color: 'gray', query: '全部' },
+    { label: '伤感', color: 'indigo', query: '伤感' },
+    { label: 'DJ 热歌', color: 'pink', query: 'DJ' },
+    { label: '深夜民谣', color: 'purple', query: '民谣' },
+    { label: '空头支票', color: 'red', query: '空头支票' },
+    { label: '孤独', color: 'cyan', query: '孤独' }
+  ];
+
+  const filteredItems = useMemo(() => {
+    const base = activeTab === 'music' ? songs : videos;
+    return base.filter(item => {
+      const matchesSearch = item.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
+                           item.artist.toLowerCase().includes(searchQuery.toLowerCase());
       
-      const success = await (activeTab === 'music' ? deleteSong(path) : deleteFile(path));
-      if (success) { 
-        onNotify('物理抹除成功', 'success'); 
-        onRefresh(); 
-      } else {
-        onNotify('删除失败：请检查云端权限策略', 'error');
+      let matchesTag = selectedTag === '全部';
+      if (!matchesTag && activeTab === 'music') {
+        const songTags = (item as Song).tags?.map(t => t.toLowerCase()) || [];
+        const normalizedSelected = selectedTag.toLowerCase();
+        
+        matchesTag = songTags.some(t => {
+            if (normalizedSelected === 'dj 热歌') return t.includes('dj');
+            if (normalizedSelected === '伤感') return t.includes('emo') || t.includes('伤感');
+            if (normalizedSelected === '深夜民谣') return t.includes('民谣');
+            if (normalizedSelected === '空头支票') return t.includes('空头支票');
+            return t.includes(normalizedSelected) || t.replace('#', '').includes(normalizedSelected);
+        });
       }
-    } catch (err) {
-      onNotify('资源路径解析异常', 'error');
-    }
-  };
-
-  const handleUploadClick = () => {
-    if (activeTab === 'playlists') { setIsCreating(true); return; }
-    fileInputRef.current?.click();
-  };
-
-  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files;
-    if (!files || files.length === 0) return;
-    setIsUploading(true);
-    onNotify(`正在建立 ${files.length} 个物理节点映射...`, 'info');
-    let successCount = 0;
-    for (let i = 0; i < files.length; i++) {
-      if (await uploadMediaV3(files[i], activeTab === 'music' ? 'music' : 'video')) successCount++;
-    }
-    setIsUploading(false);
-    if (successCount > 0) { onNotify(`成功映射 ${successCount} 个物理记录`, 'success'); onRefresh(); }
-    else onNotify('映射失败，请检查网络链路', 'error');
-    if (fileInputRef.current) fileInputRef.current.value = '';
-  };
+      
+      return matchesSearch && matchesTag;
+    });
+  }, [activeTab, songs, videos, searchQuery, selectedTag]);
 
   return (
-    <div className="h-full flex flex-col bg-[#050505] p-8 md:p-12 overflow-hidden">
-      <header className="flex flex-col lg:flex-row items-center justify-between gap-8 mb-12">
-        <div className="space-y-4 text-center lg:text-left">
-          <h2 className="text-3xl font-black italic tracking-tighter">控制台管理</h2>
-          <div className="flex bg-white/5 p-1 rounded-full border border-white/5 mx-auto lg:mx-0 w-fit">
-            {[
-              { id: 'music', label: '我的单曲' },
-              { id: 'videos', label: '我的映画' },
-              { id: 'playlists', label: '我的歌单' }
-            ].map(t => (
+    <div className="h-full flex flex-col p-4 md:p-6 overflow-hidden bg-transparent">
+      
+      <header className="mb-4 md:mb-6 space-y-4">
+        <div className="flex flex-col lg:flex-row items-center justify-between gap-4">
+          <div className="flex items-center space-x-4">
+              <h2 className="text-xl md:text-2xl font-[900] text-white tracking-tighter italic aurora-text leading-none">音乐库</h2>
+              <div className="bg-white/5 p-0.5 rounded-lg flex border border-white/5 backdrop-blur-3xl">
+                <button 
+                    onClick={() => {setActiveTab('music'); setSelectedTag('全部');}} 
+                    className={`px-4 py-1.5 rounded-md text-[8px] font-black uppercase transition-all duration-500 ${activeTab === 'music' ? 'bg-white shadow-md text-black' : 'text-white/30 hover:text-white'}`}
+                >
+                    音频
+                </button>
+                <button 
+                    onClick={() => {setActiveTab('videos'); setSelectedTag('全部');}} 
+                    className={`px-4 py-1.5 rounded-md text-[8px] font-black uppercase transition-all duration-500 ${activeTab === 'videos' ? 'bg-white shadow-md text-black' : 'text-white/30 hover:text-white'}`}
+                >
+                    视频
+                </button>
+              </div>
+          </div>
+
+          <div className="flex items-center gap-2 w-full lg:w-auto">
+            <div className="relative flex-1 lg:w-56 group">
+              <i className="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-white/20 group-focus-within:text-indigo-400 transition-colors text-[9px]"></i>
+              <input 
+                type="text" placeholder="快速定位..." 
+                className="w-full bg-white/5 border border-white/10 rounded-lg py-1.5 pl-9 pr-3 text-[9px] font-black text-white focus:bg-white/10 outline-none transition-all placeholder-white/10"
+                value={searchQuery} onChange={e => setSearchQuery(e.target.value)}
+              />
+            </div>
+            <button 
+              onClick={() => onRefresh()}
+              className="w-8 h-8 bg-white/5 border border-white/10 rounded-lg flex items-center justify-center text-white/40 hover:text-white hover:bg-indigo-500 transition-all group"
+            >
+              <i className="fa-solid fa-rotate group-hover:rotate-180 transition-transform duration-700 text-[10px]"></i>
+            </button>
+          </div>
+        </div>
+
+        {activeTab === 'music' && (
+          <div className="flex flex-wrap items-center gap-1.5 md:gap-2">
+            <span className="text-[7px] font-black text-indigo-400 uppercase tracking-widest italic mr-2">映射器:</span>
+            {MOOD_TAGS.map(mood => (
               <button 
-                key={t.id} 
-                onClick={() => setActiveTab(t.id as any)} 
-                className={`px-8 py-2 rounded-full text-[10px] font-black uppercase tracking-widest transition-all ${activeTab === t.id ? 'bg-[#C20C0C] text-white' : 'text-white/40 hover:text-white'}`}
+                key={mood.label}
+                onClick={() => setSelectedTag(mood.label)}
+                className={`px-2.5 py-1 rounded-md text-[8px] font-black tracking-widest uppercase transition-all border ${selectedTag === mood.label ? 'bg-white text-black border-white shadow-sm scale-105' : 'bg-white/5 border-white/5 text-white/20 hover:text-white hover:border-white/20'}`}
               >
-                {t.label}
+                {mood.label}
               </button>
             ))}
           </div>
-        </div>
-        <div className="flex items-center gap-4 w-full lg:w-auto">
-          <input 
-            type="text" 
-            placeholder="搜索本地映射记录..." 
-            className="flex-1 lg:w-64 bg-white/5 border border-white/5 rounded-full py-2.5 px-6 text-xs text-white outline-none focus:border-[#C20C0C]/50 transition-all" 
-            value={query} 
-            onChange={e => setQuery(e.target.value)} 
-          />
-          <input type="file" ref={fileInputRef} onChange={handleFileChange} multiple accept={activeTab === 'music' ? '.mp3,.wav,.m4a,.flac' : '.mp4,.mov'} className="hidden" />
-          <button onClick={handleUploadClick} disabled={isUploading} className="w-10 h-10 rounded-full bg-[#C20C0C] flex items-center justify-center transition-all active:scale-90 shadow-lg shadow-red-900/20">
-            {isUploading ? <i className="fa-solid fa-spinner animate-spin"></i> : <i className={`fa-solid ${activeTab === 'playlists' ? 'fa-plus' : 'fa-cloud-arrow-up'} text-xs text-white`}></i>}
-          </button>
-          <button onClick={onRefresh} className="w-10 h-10 rounded-full bg-white/5 border border-white/5 text-white/40 flex items-center justify-center hover:text-white transition-colors"><i className="fa-solid fa-rotate text-xs"></i></button>
-        </div>
+        )}
       </header>
 
-      <div className="flex-1 overflow-y-auto custom-scrollbar space-y-1 pb-32">
-        {data.length > 0 ? data.map((item: any, idx: number) => (
-          <div key={item.id} onClick={() => (activeTab === 'music' ? onViewDetails(item) : activeTab === 'videos' ? onViewVideoDetails(item) : onViewPlaylist(item))} className="group flex items-center justify-between p-4 rounded-xl hover:bg-white/[0.04] transition-all cursor-pointer border border-transparent hover:border-white/5">
-            <div className="flex items-center gap-6 flex-1 truncate">
-              <span className="w-6 text-[10px] font-mono text-white/20 tabular-nums">{idx + 1}</span>
-              <div className="truncate">
-                <h3 className="text-sm font-black text-white/90 truncate group-hover:text-[#C20C0C] transition-colors">{item.name || '未知映射节点'}</h3>
-                <p className="text-[10px] font-bold text-white/20 uppercase tracking-widest mt-1 italic">{item.artist || '系统信号'}</p>
-              </div>
-            </div>
-            <div className="flex items-center gap-4 opacity-0 group-hover:opacity-100 transition-all">
-               {activeTab !== 'playlists' && <button onClick={(e) => handleDelete(e, item)} className="text-white/20 hover:text-red-500 transition-colors" title="抹除映射"><i className="fa-solid fa-trash-can text-xs"></i></button>}
-               <i className="fa-solid fa-chevron-right text-[10px] text-white/10"></i>
-            </div>
+      <div className="flex-1 overflow-y-auto no-scrollbar pr-1 pb-24">
+        {filteredItems.length === 0 ? (
+          <div className="h-full flex flex-col items-center justify-center opacity-10 space-y-4 py-20">
+             <i className="fa-solid fa-box-open text-3xl"></i>
+             <p className="text-[7px] font-black uppercase tracking-[0.5em]">未发现共鸣</p>
           </div>
-        )) : (
-          <div className="h-64 flex flex-col items-center justify-center space-y-4 opacity-10">
-            <i className="fa-solid fa-magnifying-glass text-4xl"></i>
-            <p className="text-[10px] font-black uppercase tracking-[0.4em]">当前库中暂无映射数据</p>
+        ) : (
+          <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-8 xl:grid-cols-10 gap-2 md:gap-3">
+            {filteredItems.map((item: any) => (
+              <div 
+                key={item.id} 
+                onClick={() => activeTab === 'music' ? onViewDetails(item) : onViewVideoDetails(item)}
+                className="group virtual-list-item bg-white/[0.02] border border-white/5 rounded-lg p-1.5 md:p-2 hover:bg-white/[0.06] hover:shadow-[0_20px_40px_-10px_rgba(0,0,0,1)] transition-all duration-500 cursor-pointer flex flex-col gap-2 relative ring-1 ring-white/5 overflow-hidden"
+              >
+                <div className="relative aspect-square rounded-md overflow-hidden shadow-lg ring-1 ring-white/10">
+                  <img src={item.coverUrl} className="w-full h-full object-cover grayscale-[20%] group-hover:grayscale-0 transition-all duration-500 scale-105 group-hover:scale-100" alt="" />
+                  
+                  <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-all duration-300 flex items-center justify-center">
+                      <div className="w-8 h-8 bg-white/90 rounded-lg flex items-center justify-center text-black scale-50 group-hover:scale-100 transition-transform">
+                         <i className="fa-solid fa-magnifying-glass-plus text-[10px]"></i>
+                      </div>
+                  </div>
+
+                  <button 
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if(confirm('抹除记录？')) {
+                        const key = decodeURIComponent(item.url.split('public/wangyiyun/')[1]);
+                        (activeTab === 'music' ? deleteSong(key) : deleteFile(key)).then(() => onRefresh());
+                      }
+                    }}
+                    className="absolute top-1 right-1 w-5 h-5 rounded-md bg-black/80 text-white/20 hover:text-red-500 hover:bg-red-500/20 transition-all flex items-center justify-center opacity-0 group-hover:opacity-100"
+                  >
+                    <i className="fa-solid fa-trash-can text-[7px]"></i>
+                  </button>
+                </div>
+                
+                <div className="flex-1 min-w-0 pb-1">
+                  <h4 className="text-[9px] md:text-[10px] font-black text-white truncate tracking-tight group-hover:text-indigo-300 transition-colors leading-tight">{item.name}</h4>
+                  <p className="text-[7px] font-bold text-white/10 uppercase tracking-tighter truncate mt-0.5 group-hover:text-white/30 transition-colors italic">{item.artist || 'Echo'}</p>
+                </div>
+              </div>
+            ))}
           </div>
         )}
       </div>
-
-      {isCreating && (
-        <div className="fixed inset-0 z-[2000] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
-          <div className="bg-[#121212] border border-white/10 p-8 rounded-[2rem] w-full max-w-sm space-y-6 shadow-2xl">
-            <h3 className="text-lg font-black italic text-[#C20C0C]"># 新建私人歌单</h3>
-            <input 
-              autoFocus 
-              placeholder="输入灵感名称..." 
-              className="w-full bg-white/5 border border-white/5 rounded-2xl py-4 px-6 text-sm text-white outline-none focus:border-[#C20C0C]/50 transition-all" 
-              onKeyDown={e => { if (e.key === 'Enter') { createPlaylist(e.currentTarget.value); setIsCreating(false); onRefresh(); } }} 
-            />
-            <div className="flex gap-4">
-              <button onClick={() => { const input = document.querySelector('input'); if(input) { createPlaylist(input.value); setIsCreating(false); onRefresh(); } }} className="flex-1 py-4 bg-[#C20C0C] text-white rounded-xl font-black text-[10px] uppercase tracking-widest shadow-lg">确认创建</button>
-              <button onClick={() => setIsCreating(false)} className="px-6 py-4 bg-white/5 text-white/40 rounded-xl font-black text-[10px] uppercase">取消</button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 };

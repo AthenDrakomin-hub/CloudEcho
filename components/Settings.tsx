@@ -1,248 +1,211 @@
 
 import React, { useState, useEffect } from 'react';
-import { S3_CONFIG, EDGE_FUNCTION_CONFIG } from '../constants';
-import { getPlaylists, savePlaylists } from '../services/playlistService';
+import { S3_CONFIG } from '../constants';
+import { getToken, clearToken, fetchMyProfile } from '../services/discoveryService';
+import Collapse from './Collapse';
 
-const Settings: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<'general' | 'storage' | 'audio' | 'about'>('general');
-  const [isTesting, setIsTesting] = useState(false);
-  const [testResult, setTestResult] = useState<{status: 'idle' | 'success' | 'error', msg: string}>({status: 'idle', msg: ''});
-  
-  const [config, setConfig] = useState({
-    auroraBg: true,
-    hdAudio: true,
-    recordSpeed: 20,
-    autoPlay: true
-  });
+interface SettingsProps {
+  isHighContrast?: boolean;
+  onToggleContrast?: () => void;
+  brightness?: number;
+  onBrightnessChange?: (val: number) => void;
+  hotkeySettings?: { master: boolean; media: boolean; nav: boolean; visual: boolean };
+  onHotkeyChange?: (settings: any) => void;
+}
 
-  const testConnection = async () => {
-    setIsTesting(true);
-    setTestResult({status: 'idle', msg: '正在建立握手协议...'});
-    try {
-      const res = await fetch(`${EDGE_FUNCTION_CONFIG.baseUrl}/list`, {
-        method: 'POST',
-        headers: { 'x-dev-key': EDGE_FUNCTION_CONFIG.devKey, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ bucket: S3_CONFIG.bucketName, prefix: S3_CONFIG.folderPrefix })
+const Settings: React.FC<SettingsProps> = ({ 
+  isHighContrast = false, 
+  onToggleContrast,
+  brightness = 1.0,
+  onBrightnessChange,
+  hotkeySettings = { master: true, media: true, nav: true, visual: true },
+  onHotkeyChange
+}) => {
+  const SYSTEM_DEEZER_ID = process.env.DEEZER_APP_ID;
+  const [appId, setAppId] = useState(SYSTEM_DEEZER_ID || localStorage.getItem('dz_app_id') || '');
+  const [isLoggedIn, setIsLoggedIn] = useState(!!getToken());
+  const [userName, setUserName] = useState<string | null>(null);
+  const [userAvatar, setUserAvatar] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (isLoggedIn) {
+      fetchMyProfile().then(user => {
+        if (user) {
+          setUserName(user.name);
+          setUserAvatar(user.picture_medium || user.picture_small);
+        }
       });
-      if (res.ok) {
-        setTestResult({status: 'success', msg: '云端链路正常 (HTTP 200)'});
-      } else {
-        throw new Error(`连接失败: ${res.status}`);
-      }
-    } catch (e: any) {
-      setTestResult({status: 'error', msg: e.message || '网络连接超时'});
     }
-    setIsTesting(false);
+  }, [isLoggedIn]);
+
+  const updateHotkey = (key: string) => {
+    if (onHotkeyChange) {
+      onHotkeyChange({ ...hotkeySettings, [key]: !hotkeySettings[key as keyof typeof hotkeySettings] });
+    }
   };
 
-  const handleExportData = () => {
-    const data = {
-      playlists: getPlaylists(),
-      quotes: JSON.parse(localStorage.getItem('local_quotes') || '[]'),
-      config: config,
-      exportAt: new Date().toISOString()
-    };
-    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `网忆云-备份-${new Date().getTime()}.json`;
-    a.click();
-    URL.revokeObjectURL(url);
-  };
-
-  const handleImportData = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      try {
-        const data = JSON.parse(event.target?.result as string);
-        if (data.playlists) savePlaylists(data.playlists);
-        if (data.quotes) localStorage.setItem('local_quotes', JSON.stringify(data.quotes));
-        alert('数据恢复成功，应用将自动刷新');
-        window.location.reload();
-      } catch (err) {
-        alert('无效的备份文件');
-      }
-    };
-    reader.readAsText(file);
-  };
-
-  const handleReset = (type: 'all' | 'cache' | 'playlists') => {
-    if (!confirm('此操作将永久清空本地偏好设置，确定继续吗？')) return;
-    if (type === 'all') {
+  const clearCache = () => {
+    if (confirm('确定要清除所有本地记录吗？这不会影响云端数据。')) {
       localStorage.clear();
-    } else if (type === 'cache') {
-      indexedDB.deleteDatabase('NocturneVirtualStorage');
-    } else if (type === 'playlists') {
-      localStorage.removeItem('nocturne_playlists');
+      window.location.reload();
     }
-    window.location.reload();
   };
+
+  const handleDeezerConnect = () => {
+    const finalAppId = SYSTEM_DEEZER_ID || appId;
+    const redirectUri = window.location.origin + window.location.pathname;
+    const perms = ['basic_access','email','offline_access','manage_library','listening_history'].join(',');
+    window.location.href = `https://connect.deezer.com/oauth/auth.php?app_id=${finalAppId}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=token&perms=${perms}`;
+  };
+
+  const hotkeys = [
+    { key: 'Space', desc: '播放 / 暂停', type: 'media' },
+    { key: 'Cmd/Ctrl + →', desc: '切向下一首', type: 'media' },
+    { key: 'Cmd/Ctrl + ←', desc: '切回上一首', type: 'media' },
+    { key: '↑ / ↓', desc: '增减音量', type: 'media' },
+    { key: 'Cmd/Ctrl + K', desc: '全局极光搜索', type: 'nav' },
+    { key: 'M', desc: '循环播放模式', type: 'nav' },
+    { key: 'H', desc: '映射 UI 隐藏', type: 'visual' }
+  ];
+
+  const Toggle = ({ active, onClick }: { active: boolean, onClick: () => void }) => (
+    <button 
+      onClick={onClick}
+      className={`w-12 h-6 rounded-full transition-all duration-500 relative shrink-0 ${active ? 'bg-indigo-500 shadow-[0_0_10px_rgba(99,102,241,0.5)]' : 'bg-white/10'}`}
+    >
+      <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all duration-500 ${active ? 'left-7 shadow-lg shadow-white/50' : 'left-1'}`}></div>
+    </button>
+  );
 
   return (
-    <div className="h-full flex flex-col bg-transparent overflow-hidden">
-      <div className="flex-1 p-8 md:p-16 overflow-y-auto custom-scrollbar">
-        <div className="max-w-5xl mx-auto space-y-16 pb-32">
-          
-          <header className="space-y-4">
-            <h1 className="text-5xl font-black italic aurora-text tracking-tighter">偏好设置</h1>
-            <p className="text-white/20 text-[10px] font-black uppercase tracking-[0.5em]">系统核心参数控制台</p>
-          </header>
+    <div className="h-full p-8 md:p-12 overflow-y-auto custom-scrollbar bg-transparent">
+      <div className="max-w-4xl mx-auto space-y-12 pb-20">
+        
+        <header className="space-y-4">
+          <h1 className="text-5xl font-black italic tracking-tighter text-white aurora-text">个性化配置</h1>
+          <p className="text-white/30 text-[10px] font-black uppercase tracking-[0.5em]">感知维度微调 · AURORA SYNC v4</p>
+        </header>
 
-          <div className="flex bg-white/5 p-1.5 rounded-2xl w-fit border border-white/5 mb-10">
-            {[
-              { id: 'general', label: '常规配置', icon: 'fa-sliders' },
-              { id: 'storage', label: '云端链路', icon: 'fa-server' },
-              { id: 'audio', label: '音频引擎', icon: 'fa-wave-square' },
-              { id: 'about', label: '关于回响', icon: 'fa-circle-info' }
-            ].map(tab => (
+        <div className="space-y-6">
+          <Collapse 
+            title="视觉终端配置 (Terminal UI)" 
+            subtitle="Theme & Contrast Controls" 
+            icon="fa-palette" 
+            accentColor="pink"
+            defaultOpen={true}
+          >
+            <div className="pt-4 space-y-10">
+               {/* 主题模式切换 */}
+               <div className="flex items-center justify-between p-6 bg-white/5 rounded-3xl border border-white/5 group hover:border-pink-500/30 transition-all">
+                  <div className="space-y-1">
+                     <p className="text-[11px] font-black text-white uppercase tracking-widest group-hover:text-pink-400 transition-colors">高对比度主题 (Contrast Boost)</p>
+                     <p className="text-[9px] text-white/30 font-bold italic tracking-widest uppercase">加深暗部背景，显著增强框架线条视觉权重</p>
+                  </div>
+                  <Toggle active={isHighContrast} onClick={onToggleContrast || (() => {})} />
+               </div>
+
+               {/* 线条与文字亮度调节 */}
+               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="p-6 bg-white/5 rounded-3xl border border-white/5 space-y-4">
+                     <div className="flex items-center justify-between">
+                        <p className="text-[10px] font-black text-indigo-400 uppercase tracking-widest">框架线条等级</p>
+                        <span className="text-[9px] font-mono text-white/40">{isHighContrast ? '2px STRONG' : '1px SUBTLE'}</span>
+                     </div>
+                     <div className="h-1 bg-white/10 rounded-full overflow-hidden">
+                        <div className={`h-full transition-all duration-700 ${isHighContrast ? 'w-full bg-indigo-500 shadow-[0_0_10px_indigo]' : 'w-1/2 bg-white/20'}`}></div>
+                     </div>
+                  </div>
+
+                  <div className="p-6 bg-white/5 rounded-3xl border border-white/5 space-y-4">
+                     <div className="flex items-center justify-between">
+                        <p className="text-[10px] font-black text-pink-400 uppercase tracking-widest">文字亮度调节</p>
+                        <span className="text-[9px] font-mono text-white/40">{Math.round(brightness * 100)}%</span>
+                     </div>
+                     <div className="relative group/slide h-6 flex items-center">
+                        <input 
+                          type="range" min="0.5" max="1.5" step="0.01" 
+                          value={brightness}
+                          onChange={(e) => onBrightnessChange?.(parseFloat(e.target.value))}
+                          className="w-full h-1 bg-white/10 rounded-full appearance-none cursor-pointer accent-pink-500"
+                        />
+                     </div>
+                  </div>
+               </div>
+               
+               <p className="text-[9px] text-center font-bold text-white/10 uppercase tracking-[0.4em] italic">Visual Engine is running on Hardware Acceleration</p>
+            </div>
+          </Collapse>
+
+          <Collapse 
+            title="快捷键配置 (Hotkey Control)" 
+            subtitle="Custom Interaction Mapping" 
+            icon="fa-keyboard" 
+            accentColor="cyan"
+          >
+            <div className="pt-4 space-y-10">
+               {/* 主开关 */}
+               <div className="flex items-center justify-between p-6 bg-indigo-500/10 rounded-3xl border border-indigo-500/20">
+                  <div className="space-y-1">
+                     <p className="text-[11px] font-black text-indigo-100 uppercase tracking-widest">全局快捷键总控</p>
+                     <p className="text-[9px] text-indigo-400 font-bold italic tracking-widest uppercase">开启后将激活下列所有逻辑监听</p>
+                  </div>
+                  <Toggle active={hotkeySettings.master} onClick={() => updateHotkey('master')} />
+               </div>
+
+               {/* 分类控制 */}
+               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                  {[
+                    { id: 'media', label: '媒体控制', icon: 'fa-play' },
+                    { id: 'nav', label: '系统导航', icon: 'fa-compass' },
+                    { id: 'visual', label: '视觉特性', icon: 'fa-eye' }
+                  ].map(cat => (
+                    <div key={cat.id} className="p-5 bg-white/5 rounded-3xl border border-white/5 flex items-center justify-between group hover:border-white/10 transition-all">
+                       <div className="flex items-center space-x-3">
+                          <i className={`fa-solid ${cat.icon} text-[10px] text-white/30 group-hover:text-white transition-colors`}></i>
+                          <span className="text-[10px] font-black text-white/60 uppercase tracking-widest">{cat.label}</span>
+                       </div>
+                       <Toggle active={hotkeySettings[cat.id as keyof typeof hotkeySettings]} onClick={() => updateHotkey(cat.id)} />
+                    </div>
+                  ))}
+               </div>
+
+               {/* 映射列表 */}
+               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {hotkeys.map((hk, idx) => (
+                    <div key={idx} className={`flex items-center justify-between p-4 bg-white/5 rounded-2xl border border-white/5 transition-opacity ${!hotkeySettings.master || !hotkeySettings[hk.type as keyof typeof hotkeySettings] ? 'opacity-20' : 'opacity-100'}`}>
+                       <span className="text-[10px] font-black text-white/40 uppercase tracking-widest">{hk.desc}</span>
+                       <kbd className="px-3 py-1 bg-white/10 rounded-lg text-[10px] font-mono font-black text-indigo-400 border border-white/10">{hk.key}</kbd>
+                    </div>
+                  ))}
+               </div>
+            </div>
+          </Collapse>
+
+          <Collapse 
+            title="数据维护 (Maintenance)" 
+            subtitle="Local Sync & Purge" 
+            icon="fa-broom-ball" 
+            accentColor="red"
+          >
+            <div className="pt-4 space-y-8">
               <button 
-                key={tab.id} onClick={() => setActiveTab(tab.id as any)}
-                className={`flex items-center gap-3 px-6 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${activeTab === tab.id ? 'bg-white text-black shadow-xl' : 'text-white/30 hover:text-white'}`}
+                onClick={clearCache} 
+                className="w-full py-5 border border-red-500/30 text-red-500 rounded-2xl font-black text-[11px] uppercase tracking-[0.2em] hover:bg-red-500 hover:text-white transition-all shadow-xl active:scale-95"
               >
-                <i className={`fa-solid ${tab.icon}`}></i>
-                <span>{tab.label}</span>
+                立刻清除本地缓存并重载
               </button>
-            ))}
-          </div>
+            </div>
+          </Collapse>
+        </div>
 
-          <div className="animate-in fade-in slide-in-from-bottom-4 duration-700">
-            {activeTab === 'general' && (
-              <div className="space-y-8">
-                <section className="bg-white/5 border border-white/5 rounded-[2.5rem] p-10 space-y-10">
-                  <div className="flex items-center justify-between">
-                    <div className="space-y-1">
-                      <p className="text-sm font-black text-white">沉浸式视觉</p>
-                      <p className="text-[10px] text-white/20 font-bold italic">背景开启高斯模糊极光效果，随封面色彩变幻</p>
-                    </div>
-                    <label className="relative inline-flex items-center cursor-pointer">
-                      <input type="checkbox" checked={config.auroraBg} onChange={e => setConfig({...config, auroraBg: e.target.checked})} className="sr-only peer" />
-                      <div className="w-11 h-6 bg-white/10 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[#C20C0C]"></div>
-                    </label>
-                  </div>
-                  
-                  <div className="flex items-center justify-between">
-                    <div className="space-y-1">
-                      <p className="text-sm font-black text-white">黑胶唱片转速</p>
-                      <p className="text-[10px] text-white/20 font-bold italic">调整唱片旋转一周所需的时间（秒）</p>
-                    </div>
-                    <div className="flex items-center gap-4">
-                      <input type="range" min="5" max="40" value={config.recordSpeed} onChange={e => setConfig({...config, recordSpeed: parseInt(e.target.value)})} className="w-32 accent-[#C20C0C]" />
-                      <span className="text-xs font-mono text-[#C20C0C]">{config.recordSpeed}s</span>
-                    </div>
-                  </div>
-                </section>
-
-                <section className="bg-white/5 border border-white/5 rounded-[2.5rem] p-10 space-y-8">
-                  <h3 className="text-[10px] font-black text-white/40 uppercase tracking-widest">数据资产备份</h3>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <button onClick={handleExportData} className="p-6 bg-black/40 border border-white/5 rounded-2xl flex items-center justify-between group hover:bg-white/5 transition-all text-left">
-                       <div>
-                         <p className="text-xs font-black text-white">导出备份包</p>
-                         <p className="text-[9px] text-white/20 font-bold uppercase mt-1 italic">导出当前所有歌单与映射参数</p>
-                       </div>
-                       <i className="fa-solid fa-file-export text-white/10 group-hover:text-[#C20C0C]"></i>
-                    </button>
-                    <label className="p-6 bg-black/40 border border-white/5 rounded-2xl flex items-center justify-between group hover:bg-white/5 transition-all cursor-pointer">
-                       <div className="text-left">
-                         <p className="text-xs font-black text-white">导入恢复</p>
-                         <p className="text-[9px] text-white/20 font-bold uppercase mt-1 italic">从 JSON 文件恢复您的私人库</p>
-                       </div>
-                       <input type="file" accept=".json" onChange={handleImportData} className="hidden" />
-                       <i className="fa-solid fa-file-import text-white/10 group-hover:text-emerald-500"></i>
-                    </label>
-                  </div>
-                </section>
-              </div>
-            )}
-
-            {activeTab === 'storage' && (
-              <div className="space-y-8">
-                <section className="bg-white/5 border border-white/5 rounded-[2.5rem] p-10 space-y-10">
-                  <div className="flex flex-col md:flex-row md:items-center justify-between gap-8">
-                    <div className="space-y-2">
-                       <h3 className="text-[10px] font-black text-emerald-500 uppercase tracking-widest italic">S3 云端链路监控</h3>
-                       <p className="text-sm font-black text-white">节点终端: <span className="text-white/40 font-mono text-[10px]">{S3_CONFIG.endpoint}</span></p>
-                    </div>
-                    <button 
-                      onClick={testConnection}
-                      disabled={isTesting}
-                      className={`px-10 py-4 rounded-2xl font-black text-xs uppercase tracking-widest transition-all ${isTesting ? 'bg-white/5 text-white/20 cursor-not-allowed' : 'bg-white text-black hover:bg-zinc-200'}`}
-                    >
-                      {isTesting ? '正在探测链路...' : '执行链路自检'}
-                    </button>
-                  </div>
-                  
-                  {testResult.msg && (
-                    <div className={`p-6 rounded-2xl flex items-center gap-4 border ${testResult.status === 'success' ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-500' : testResult.status === 'error' ? 'bg-red-500/10 border-red-500/20 text-red-500' : 'bg-white/5 border-white/10 text-white/40'}`}>
-                      <i className={`fa-solid ${testResult.status === 'success' ? 'fa-circle-check' : testResult.status === 'error' ? 'fa-circle-xmark' : 'fa-spinner animate-spin'}`}></i>
-                      <p className="text-[11px] font-black uppercase tracking-widest">{testResult.msg}</p>
-                    </div>
-                  )}
-
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-8 pt-6 border-t border-white/5">
-                    <div className="space-y-2">
-                      <p className="text-[8px] font-black text-white/20 uppercase tracking-widest italic">音频存储前缀</p>
-                      <p className="text-xs font-mono text-white/60">{S3_CONFIG.folderPrefix}</p>
-                    </div>
-                    <div className="space-y-2">
-                      <p className="text-[8px] font-black text-white/20 uppercase tracking-widest italic">映画存储前缀</p>
-                      <p className="text-xs font-mono text-white/60">{S3_CONFIG.videoFolderPrefix}</p>
-                    </div>
-                  </div>
-                </section>
-              </div>
-            )}
-
-            {activeTab === 'audio' && (
-              <div className="space-y-8">
-                 <section className="bg-white/5 border border-white/5 rounded-[2.5rem] p-10 space-y-10">
-                    <div className="flex items-center justify-between">
-                      <div className="space-y-1">
-                        <p className="text-sm font-black text-white">无损回响模式 (24-bit)</p>
-                        <p className="text-[10px] text-white/20 font-bold italic">开启高比特率请求，还原最真实的听觉触感</p>
-                      </div>
-                      <label className="relative inline-flex items-center cursor-pointer">
-                        <input type="checkbox" checked={config.hdAudio} onChange={e => setConfig({...config, hdAudio: e.target.checked})} className="sr-only peer" />
-                        <div className="w-11 h-6 bg-white/10 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[#C20C0C]"></div>
-                      </label>
-                    </div>
-
-                    <div className="p-8 bg-black/40 rounded-3xl border border-white/5 flex items-center gap-6">
-                      <div className="w-12 h-12 bg-[#C20C0C]/10 rounded-2xl flex items-center justify-center">
-                         <i className="fa-solid fa-microchip text-[#C20C0C]"></i>
-                      </div>
-                      <div>
-                        <p className="text-[10px] font-black text-white uppercase tracking-widest">核心引擎</p>
-                        <p className="text-xs font-bold text-white/30 italic mt-1">WebAudio API · 采样率自动对齐 (V3)</p>
-                      </div>
-                    </div>
-                 </section>
-              </div>
-            )}
-
-            {activeTab === 'about' && (
-              <div className="space-y-12 text-center py-10">
-                 <div className="w-24 h-24 bg-[#C20C0C] rounded-[2rem] flex items-center justify-center text-4xl shadow-2xl shadow-red-900/40 mx-auto mb-8 animate-pulse">
-                   <i className="fa-solid fa-cloud"></i>
-                 </div>
-                 <div className="space-y-4">
-                    <h2 className="text-3xl font-black italic tracking-tighter uppercase">网忆云 · 回响协议</h2>
-                    <p className="text-[10px] font-black text-white/20 uppercase tracking-[0.6em]">版本 4.5.0-中文正式版</p>
-                 </div>
-                 <div className="max-w-md mx-auto">
-                    <p className="text-xs font-bold text-white/40 leading-relaxed italic">
-                      “我们不生产音乐，我们只是通过物理映射，让散落在云端的灵魂重新共鸣。”
-                    </p>
-                 </div>
-                 <div className="pt-12">
-                   <button onClick={() => handleReset('all')} className="text-[10px] font-black text-red-500 uppercase tracking-widest border-b border-red-500/20 pb-1 hover:text-red-400 transition-colors">物理重置感知系统 (清空所有本地缓存数据)</button>
-                 </div>
-              </div>
-            )}
-          </div>
+        <div className="bg-gradient-to-r from-indigo-600/20 to-pink-600/20 border border-white/5 rounded-[3.5rem] p-12 text-white flex flex-col md:flex-row items-center justify-between gap-10 shadow-2xl">
+           <div className="space-y-4 text-center md:text-left">
+              <h4 className="text-3xl font-black italic tracking-tight text-white drop-shadow-lg">感知维度调节已就绪</h4>
+              <p className="text-[10px] font-black uppercase tracking-widest opacity-40 leading-relaxed">Aurora Sync 将根据您的交互偏好实时优化内存驻留策略。</p>
+           </div>
+           <div className="w-24 h-24 bg-white/5 rounded-full flex items-center justify-center animate-spin-slow border border-white/10">
+              <i className="fa-solid fa-atom text-4xl text-indigo-400"></i>
+           </div>
         </div>
       </div>
     </div>

@@ -13,39 +13,39 @@ const ErrorNotification: React.FC<ErrorNotificationProps> = ({ notifications, on
       {notifications.map((n) => (
         <div 
           key={n.id}
-          className={`pointer-events-auto w-80 md:w-96 p-5 rounded-2xl shadow-[0_20px_60px_-10px_rgba(0,0,0,0.8)] flex items-start space-x-4 animate-in slide-in-from-right-10 duration-500 border-2 ${
-            n.type === 'error' ? 'bg-red-600 border-red-400 text-white' :
-            n.type === 'warning' ? 'bg-amber-500 border-amber-300 text-black' :
-            n.type === 'success' ? 'bg-emerald-600 border-emerald-400 text-white' :
-            'bg-indigo-600 border-indigo-400 text-white'
+          className={`pointer-events-auto w-80 md:w-96 backdrop-blur-2xl border p-5 rounded-2xl shadow-2xl flex items-start space-x-4 animate-in slide-in-from-right-10 duration-500 ${
+            n.type === 'error' ? 'bg-red-600/10 border-red-600/30' :
+            n.type === 'warning' ? 'bg-amber-600/10 border-amber-600/30' :
+            n.type === 'success' ? 'bg-green-600/10 border-green-600/30' :
+            'bg-white/5 border-white/10'
           }`}
         >
-          <div className={`mt-0.5 w-8 h-8 rounded-xl flex items-center justify-center shrink-0 shadow-inner ${
-            n.type === 'error' ? 'bg-white/20' :
-            n.type === 'warning' ? 'bg-black/10' :
-            n.type === 'success' ? 'bg-white/20' :
-            'bg-white/20'
+          <div className={`mt-0.5 w-6 h-6 rounded-lg flex items-center justify-center shrink-0 ${
+            n.type === 'error' ? 'bg-red-600 text-white' :
+            n.type === 'warning' ? 'bg-amber-600 text-black' :
+            n.type === 'success' ? 'bg-green-600 text-white' :
+            'bg-white text-black'
           }`}>
             <i className={`fa-solid ${
               n.type === 'error' ? 'fa-circle-exclamation' :
               n.type === 'warning' ? 'fa-triangle-exclamation' :
               n.type === 'success' ? 'fa-circle-check' :
               'fa-circle-info'
-            } text-sm`}></i>
+            } text-[10px]`}></i>
           </div>
           <div className="flex-1 min-w-0">
-            <p className={`text-[10px] font-black uppercase tracking-widest mb-1 opacity-80 ${n.type === 'warning' ? 'text-black/60' : 'text-white/60'}`}>
-              {n.type === 'error' ? '系统异常报告' : 
-               n.type === 'warning' ? '安全警示' : 
-               n.type === 'success' ? '操作已成功' : '系统提示'}
+            <p className="text-[11px] font-black uppercase tracking-widest text-zinc-500 mb-1">
+              {n.type === 'error' ? '系统异常 (System Error)' : 
+               n.type === 'warning' ? '警示提示 (Alert)' : 
+               n.type === 'success' ? '操作成功 (Success)' : '系统信息 (Info)'}
             </p>
-            <p className="text-[13px] font-[900] leading-tight drop-shadow-sm">{n.message}</p>
+            <p className="text-xs font-bold text-white leading-relaxed">{n.message}</p>
           </div>
           <button 
             onClick={() => onDismiss(n.id)}
-            className={`transition-colors p-1 hover:scale-125 ${n.type === 'warning' ? 'text-black/40 hover:text-black' : 'text-white/40 hover:text-white'}`}
+            className="text-zinc-500 hover:text-white transition-colors"
           >
-            <i className="fa-solid fa-xmark text-sm"></i>
+            <i className="fa-solid fa-xmark text-xs"></i>
           </button>
         </div>
       ))}

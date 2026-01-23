@@ -8,7 +8,7 @@ export interface Song {
   size?: number;
   lastModified?: Date;
   lyrics?: string;
-  tags?: string[];
+  tags?: string[]; // 新增：标签系统
   isExternal?: boolean; 
 }
 
@@ -19,13 +19,6 @@ export interface Video {
   url: string;
   coverUrl: string;
   lastModified?: Date;
-}
-
-export interface Playlist {
-  id: string;
-  name: string;
-  songIds: string[];
-  createdAt: number;
 }
 
 export enum PlaybackMode {
@@ -39,12 +32,11 @@ export enum ViewMode {
   DISCOVERY = 'DISCOVERY',
   MANAGER = 'MANAGER',
   VIDEO = 'VIDEO',
+  API_DOCS = 'API_DOCS',
   SONG_DETAILS = 'SONG_DETAILS',
   VIDEO_DETAILS = 'VIDEO_DETAILS',
   SETTINGS = 'SETTINGS',
-  PLAYLIST_DETAIL = 'PLAYLIST_DETAIL',
-  COPYWRITING = 'COPYWRITING',
-  LIVE = 'LIVE'
+  CACHE_SPACE = 'CACHE_SPACE'
 }
 
 export type NotificationType = 'error' | 'warning' | 'info' | 'success';
@@ -56,8 +48,7 @@ export interface AppNotification {
 }
 
 export interface Quote {
-  id: string;
+  id: number;
   category: string;
   content: string;
-  createdAt: number;
 }

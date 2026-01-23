@@ -3,27 +3,33 @@
 <html lang="zh-CN">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-  <title>网忆云 - 子夜回响，听见灵魂</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>东南亚子夜电台 - 浪子港湾</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800;900&family=Noto+Serif+SC:wght@700;900&display=swap');
     
     :root {
-      --netease-red: #C20C0C;
-      --netease-black: #020408;
-      --cyber-blue: #00d2ff;
-      --cyber-purple: #9d50bb;
-      --glass-bg: rgba(10, 15, 25, 0.75);
-      --glass-border: rgba(255, 255, 255, 0.4); 
+      --aurora-1: #020617;
+      --aurora-2: #050505;
+      --aurora-3: #0f172a;
+      --aurora-4: #1e1b4b;
+      --accent-indigo: #6366f1;
+      --accent-purple: #8b5cf6;
+      --accent-pink: #ec4899;
+      --glass-bg: rgba(0, 0, 0, 0.85);
+      --glass-border: rgba(255, 255, 255, 0.05);
     }
     
     * {
-      font-family: 'Inter', -apple-system, "Microsoft YaHei", sans-serif;
+      font-family: 'Inter', -apple-system, system-ui, sans-serif;
       -webkit-font-smoothing: antialiased;
       box-sizing: border-box;
-      user-select: none;
+    }
+
+    .font-serif-quote {
+      font-family: 'Noto Serif SC', serif;
     }
 
     body {
@@ -31,143 +37,88 @@
       padding: 0;
       overflow: hidden;
       height: 100vh;
-      background: var(--netease-black);
-      color: #ffffff;
+      display: flex;
+      background: var(--aurora-1);
+      color: white;
     }
 
-    /* 沉浸式星云背景 */
-    .nebula-bg {
+    .aurora-container {
       position: fixed;
       inset: 0;
       z-index: -2;
-      background: radial-gradient(circle at 50% 100%, #0d1b3e 0%, #020408 100%);
-      overflow: hidden;
+      background: var(--aurora-1);
+      background-image: radial-gradient(ellipse at bottom, #0f172a, #020617, #000);
     }
 
-    .nebula-bg::before {
-      content: '';
-      position: absolute;
-      width: 200%;
-      height: 200%;
-      top: -50%;
-      left: -50%;
-      background-image: 
-        radial-gradient(2px 2px at 20px 30px, #eee, rgba(0,0,0,0)),
-        radial-gradient(2px 2px at 40px 70px, #fff, rgba(0,0,0,0)),
-        radial-gradient(2px 2px at 50px 160px, #ddd, rgba(0,0,0,0)),
-        radial-gradient(2px 2px at 90px 40px, #fff, rgba(0,0,0,0)),
-        radial-gradient(2px 2px at 130px 80px, #fff, rgba(0,0,0,0)),
-        radial-gradient(2px 2px at 160px 120px, #ddd, rgba(0,0,0,0));
-      background-repeat: repeat;
-      background-size: 200px 200px;
-      opacity: 0.6;
-      animation: stars-move 100s linear infinite;
-    }
-
-    .nebula-clouds {
-      position: absolute;
-      inset: 0;
-      background: 
-        radial-gradient(circle at 20% 80%, rgba(0, 210, 255, 0.3) 0%, transparent 40%),
-        radial-gradient(circle at 80% 85%, rgba(157, 80, 187, 0.3) 0%, transparent 40%),
-        radial-gradient(circle at 50% 90%, rgba(194, 12, 12, 0.25) 0%, transparent 50%);
-      filter: blur(60px);
-      animation: clouds-drift 15s ease-in-out infinite alternate;
-    }
-
-    .data-grid {
-      position: absolute;
-      inset: 0;
-      background-image: 
-        linear-gradient(rgba(0, 210, 255, 0.15) 2px, transparent 2px), 
-        linear-gradient(90deg, rgba(0, 210, 255, 0.15) 2px, transparent 2px);
-      background-size: 60px 60px;
-      perspective: 1200px;
-      transform: rotateX(65deg) scale(2.5);
-      transform-origin: bottom;
-      opacity: 0.4;
-      z-index: -1;
-    }
-
-    @keyframes stars-move {
-      from { transform: translateY(0); }
-      to { transform: translateY(-200px); }
-    }
-
-    @keyframes clouds-drift {
-      from { transform: scale(1) translate(0, 0); }
-      to { transform: scale(1.15) translate(3%, 3%); }
-    }
-
-    .bg-immersive {
+    .aurora-fluid {
       position: fixed;
-      inset: -50px;
-      z-index: -3;
-      filter: blur(100px) brightness(0.25);
-      background-size: cover;
-      background-position: center;
-      transition: background-image 2.5s ease-in-out;
-      opacity: 0.85;
+      inset: 0;
+      z-index: -1;
+      background: linear-gradient(125deg, 
+        rgba(79, 70, 229, 0.1), 
+        rgba(124, 58, 237, 0.05), 
+        rgba(219, 39, 119, 0.05), 
+        rgba(79, 70, 229, 0.06)
+      );
+      background-size: 400% 400%;
+      animation: aurora-flow 25s ease infinite alternate;
+      filter: blur(120px);
     }
 
-    .custom-scrollbar::-webkit-scrollbar { width: 6px; }
-    .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
-    .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.4); border-radius: 10px; }
-    
-    .font-serif-quote { font-family: 'Noto Serif SC', serif; }
-
-    @keyframes rotate-record {
-      from { transform: rotate(0deg); }
-      to { transform: rotate(360deg); }
-    }
-    .animate-record {
-      animation: rotate-record 20s linear infinite;
-    }
-    .animate-record-paused {
-      animation-play-state: paused;
+    @keyframes aurora-flow {
+      0% { background-position: 0% 50%; }
+      50% { background-position: 100% 50%; }
+      100% { background-position: 0% 50%; }
     }
 
-    /* 极致高亮强化 */
-    .aurora-text {
-      background: linear-gradient(90deg, #fff, #00d2ff, #9d50bb, #fff);
-      background-size: 200% auto;
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
-      animation: shine 5s linear infinite;
-      text-shadow: 0 0 20px rgba(255, 255, 255, 0.6);
-    }
-    
-    .high-light {
-      color: #ffffff !important;
-      text-shadow: 0 0 12px rgba(255, 255, 255, 0.9), 0 0 25px rgba(255, 255, 255, 0.6);
-      opacity: 1 !important;
-    }
-
-    @keyframes shine {
-      to { background-position: 200% center; }
-    }
-
-    .heavy-border {
-      border: 2px solid rgba(255, 255, 255, 0.4);
-      box-shadow: 0 0 25px rgba(0, 0, 0, 0.6);
-    }
-    
-    .neon-border-red {
-      border: 2px solid rgba(194, 12, 12, 0.8);
-      box-shadow: 0 0 20px rgba(194, 12, 12, 0.5);
-    }
-
-    .neon-border-cyan {
-      border: 2px solid rgba(0, 210, 255, 0.8);
-      box-shadow: 0 0 20px rgba(0, 210, 255, 0.5);
-    }
-
-    .glass-panel {
+    .glass-dark-morphism {
       background: var(--glass-bg);
-      backdrop-filter: blur(30px);
-      -webkit-backdrop-filter: blur(30px);
-      border: 2px solid var(--glass-border);
-      box-shadow: 0 12px 50px 0 rgba(0, 0, 0, 1);
+      backdrop-filter: blur(80px);
+      -webkit-backdrop-filter: blur(80px);
+      border: 1px solid var(--glass-border);
+      box-shadow: 0 12px 48px 0 rgba(0, 0, 0, 1);
+    }
+
+    .aurora-text {
+      background: linear-gradient(to right, #6366f1, #a855f7, #ec4899);
+      -webkit-background-clip: text;
+      background-clip: text;
+      color: transparent;
+      filter: drop-shadow(0 0 8px rgba(99, 102, 241, 0.4));
+    }
+
+    .perspective-3000 { perspective: 3000px; }
+    .preserve-3d { transform-style: preserve-3d; }
+
+    .initial-loader {
+      position: fixed;
+      inset: 0;
+      background: #000;
+      z-index: 10000;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: opacity 1.5s ease;
+    }
+
+    .no-scrollbar::-webkit-scrollbar { display: none; }
+    .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+    @keyframes dj-pulse {
+      0%, 100% { transform: scale(1); filter: brightness(1); }
+      50% { transform: scale(1.03); filter: brightness(1.2); }
+    }
+    .dj-pulse-active { animation: dj-pulse 0.45s cubic-bezier(0.4, 0, 0.2, 1) infinite; }
+
+    @keyframes dj-bar {
+      0%, 100% { transform: scaleY(0.2); opacity: 0.3; }
+      50% { transform: scaleY(1); opacity: 0.9; }
+    }
+    .dj-bar-anim { animation: dj-bar 0.3s ease-in-out infinite; transform-origin: bottom; }
+
+    .virtual-list-item {
+      content-visibility: auto;
+      contain-intrinsic-size: 1px 120px;
     }
   </style>
   <script type="importmap">
@@ -178,19 +129,27 @@
     "react-dom/": "https://esm.sh/react-dom@19.0.0/",
     "react/": "https://esm.sh/react@19.0.0/",
     "@aws-sdk/client-s3": "https://esm.sh/@aws-sdk/client-s3@3.712.0?bundle&target=browser",
+    "@google/genai": "https://esm.sh/@google/genai@^1.35.0",
     "vite": "https://esm.sh/vite@^7.3.1",
-    "@vitejs/plugin-react": "https://esm.sh/@vitejs/plugin-react@^5.1.2",
-    "@google/genai": "https://esm.sh/@google/genai@^1.36.0"
+    "@vitejs/plugin-react": "https://esm.sh/@vitejs/plugin-react@^5.1.2"
   }
 }
 </script>
   <script type="module" src="index.tsx"></script>
 </head>
 <body>
-  <div class="nebula-bg">
-    <div class="nebula-clouds"></div>
-    <div class="data-grid"></div>
+  <div class="initial-loader">
+     <div class="flex flex-col items-center">
+        <div class="relative w-32 h-32 mb-12">
+           <div class="absolute inset-0 border-[2px] border-white/5 rounded-full"></div>
+           <div class="absolute inset-0 border-[2px] border-t-indigo-600 rounded-full animate-spin"></div>
+        </div>
+        <p class="text-[12px] font-black uppercase tracking-[1.2em] text-indigo-500 animate-pulse">东南亚子夜电台</p>
+        <p class="text-[8px] font-bold text-white/20 uppercase tracking-[0.4em] mt-6 italic">浪子归宿 · V4.5.0</p>
+     </div>
   </div>
-  <div id="root" class="h-full w-full relative z-10"></div>
+  <div class="aurora-container"></div>
+  <div class="aurora-fluid"></div>
+  <div id="root"></div>
 </body>
 </html>
