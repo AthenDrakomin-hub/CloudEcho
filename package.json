@@ -1,6 +1,5 @@
-
 {
-  "name": "tectonic-pivot",
+  "name": "cloud-echo-unified",
   "private": true,
   "version": "1.0.0",
   "type": "module",
@@ -14,7 +13,7 @@
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "lucide-react": "^0.563.0",
-    "@aws-sdk/client-s3": "^3.637.0",
+    "@aws-sdk/client-s3": "^3.712.0",
     "@smithy/fetch-http-handler": "^3.2.1"
   },
   "devDependencies": {

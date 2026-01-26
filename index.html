@@ -1,42 +1,124 @@
-
 <!DOCTYPE html>
-<html lang="en">
+<html lang="zh-CN">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Tectonic Pivot</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;500&family=Noto+Sans+SC:wght@300;500;900&display=swap" rel="stylesheet">
-    <style>
-        body {
-            font-family: 'Noto Sans SC', sans-serif;
-            background-color: #0a0a0c;
-            color: #e0e0e0;
-        }
-        .font-mono-custom {
-            font-family: 'JetBrains Mono', monospace;
-        }
-        /* Brushed metal texture effect */
-        .brushed-texture {
-            background-image: repeating-linear-gradient(
-                45deg,
-                rgba(0, 0, 0, 0) 0px,
-                rgba(0, 0, 0, 0.05) 1px,
-                transparent 2px
-            );
-        }
-        /* Hide scrollbar for Chrome, Safari and Opera */
-        .no-scrollbar::-webkit-scrollbar {
-            display: none;
-        }
-        /* Hide scrollbar for IE, Edge and Firefox */
-        .no-scrollbar {
-            -ms-overflow-style: none;
-            scrollbar-width: none;
-        }
-    </style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Cloud Echo 统一平台</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;500&family=Noto+Sans+SC:wght@300;500;900&family=Inter:wght@400;600;800;900&family=Noto+Serif+SC:wght@700;900&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --aurora-1: #020617;
+      --aurora-2: #050505;
+      --aurora-3: #0f172a;
+      --aurora-4: #1e1b4b;
+      --accent-indigo: #6366f1;
+      --accent-purple: #8b5cf6;
+      --accent-pink: #ec4899;
+      --glass-bg: rgba(0, 0, 0, 0.85);
+      --glass-border: rgba(255, 255, 255, 0.05);
+    }
+    
+    body {
+      font-family: 'Noto Sans SC', sans-serif;
+      background-color: #0a0a0c;
+      color: #e0e0e0;
+      margin: 0;
+      padding: 0;
+      overflow: hidden;
+      height: 100vh;
+      display: flex;
+    }
+    
+    .font-mono-custom {
+      font-family: 'JetBrains Mono', monospace;
+    }
+    
+    .font-serif-quote {
+      font-family: 'Noto Serif SC', serif;
+    }
+    
+    /* Brushed metal texture effect */
+    .brushed-texture {
+      background-image: repeating-linear-gradient(
+        45deg,
+        rgba(0, 0, 0, 0) 0px,
+        rgba(0, 0, 0, 0.05) 1px,
+        transparent 2px
+      );
+    }
+    
+    /* Aurora background effects */
+    .aurora-container {
+      position: fixed;
+      inset: 0;
+      z-index: -2;
+      background: var(--aurora-1);
+      background-image: radial-gradient(ellipse at bottom, #0f172a, #020617, #000);
+    }
+
+    .aurora-fluid {
+      position: fixed;
+      inset: 0;
+      z-index: -1;
+      background: linear-gradient(125deg, 
+        rgba(79, 70, 229, 0.1), 
+        rgba(124, 58, 237, 0.05), 
+        rgba(219, 39, 119, 0.05), 
+        rgba(79, 70, 229, 0.06)
+      );
+      background-size: 400% 400%;
+      animation: aurora-flow 25s ease infinite alternate;
+      filter: blur(120px);
+    }
+
+    @keyframes aurora-flow {
+      0% { background-position: 0% 50%; }
+      50% { background-position: 100% 50%; }
+      100% { background-position: 0% 50%; }
+    }
+
+    .glass-dark-morphism {
+      background: var(--glass-bg);
+      backdrop-filter: blur(80px);
+      -webkit-backdrop-filter: blur(80px);
+      border: 1px solid var(--glass-border);
+      box-shadow: 0 12px 48px 0 rgba(0, 0, 0, 1);
+    }
+
+    .aurora-text {
+      background: linear-gradient(to right, #6366f1, #a855f7, #ec4899);
+      -webkit-background-clip: text;
+      background-clip: text;
+      color: transparent;
+      filter: drop-shadow(0 0 8px rgba(99, 102, 241, 0.4));
+    }
+
+    /* Hide scrollbar for Chrome, Safari and Opera */
+    .no-scrollbar::-webkit-scrollbar {
+      display: none;
+    }
+    /* Hide scrollbar for IE, Edge and Firefox */
+    .no-scrollbar {
+      -ms-overflow-style: none;
+      scrollbar-width: none;
+    }
+
+    @keyframes dj-pulse {
+      0%, 100% { transform: scale(1); filter: brightness(1); }
+      50% { transform: scale(1.03); filter: brightness(1.2); }
+    }
+    .dj-pulse-active { animation: dj-pulse 0.45s cubic-bezier(0.4, 0, 0.2, 1) infinite; }
+
+    @keyframes dj-bar {
+      0%, 100% { transform: scaleY(0.2); opacity: 0.3; }
+      50% { transform: scaleY(1); opacity: 0.9; }
+    }
+    .dj-bar-anim { animation: dj-bar 0.3s ease-in-out infinite; transform-origin: bottom; }
+  </style>
 <script type="importmap">
 {
   "imports": {
@@ -55,7 +137,21 @@
 <link rel="stylesheet" href="/index.css">
 </head>
 <body class="overflow-hidden h-screen select-none">
-    <div id="root"></div>
-    <script type="module" src="/index.tsx"></script>
+  <div class="initial-loader fixed inset-0 z-[10000] bg-black flex flex-col items-center justify-center transition-opacity duration-1500 delay-[3500ms]">
+     <div class="max-w-xl px-12 space-y-10 text-center animate-in zoom-in-95 fade-in duration-[1500ms]">
+        <p class="text-[10px] font-black uppercase tracking-[1em] text-indigo-500/60 mb-4">Cloud Echo 统一平台</p>
+        <p class="text-2xl md:text-3xl font-serif-quote font-black italic tracking-tighter leading-relaxed text-white drop-shadow-2xl">
+          "融合技术与艺术，连接云端与心灵"
+        </p>
+        <div class="flex flex-col items-center space-y-3 opacity-30">
+           <div class="w-16 h-[1px] bg-indigo-600"></div>
+           <span class="text-[9px] font-black uppercase tracking-[0.6em]">Unified Platform</span>
+        </div>
+     </div>
+  </div>
+  <div class="aurora-container"></div>
+  <div class="aurora-fluid"></div>
+  <div id="root"></div>
+  <script type="module" src="/index.tsx"></script>
 </body>
 </html>
