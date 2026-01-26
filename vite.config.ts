@@ -4,28 +4,20 @@ import react from '@vitejs/plugin-react';
 
 export default defineConfig({
   plugins: [react()],
+  define: {
+    'process.env.API_KEY': JSON.stringify(process.env.API_KEY),
+    'process.env.SUPABASE_S3_ENDPOINT': JSON.stringify(process.env.SUPABASE_S3_ENDPOINT),
+    'process.env.SUPABASE_S3_REGION': JSON.stringify(process.env.SUPABASE_S3_REGION),
+    'process.env.SUPABASE_S3_ACCESS_KEY_ID': JSON.stringify(process.env.SUPABASE_S3_ACCESS_KEY_ID),
+    'process.env.SUPABASE_S3_SECRET_ACCESS_KEY': JSON.stringify(process.env.SUPABASE_S3_SECRET_ACCESS_KEY),
+    'process.env.SUPABASE_S3_BUCKET': JSON.stringify(process.env.SUPABASE_S3_BUCKET),
+    'process.env.SUPABASE_AUTH_URL': JSON.stringify(process.env.SUPABASE_AUTH_URL),
+  },
   build: {
-    chunkSizeWarningLimit: 1000,
+    outDir: 'dist',
     rollupOptions: {
-      output: {
-        manualChunks(id) {
-          if (id.includes('node_modules')) {
-            if (id.includes('@aws-sdk')) return 'vendor-aws';
-            if (id.includes('react')) return 'vendor-react';
-            if (id.includes('@lucide')) return 'vendor-ui';
-            return 'vendor-libs';
-          }
-        },
-        chunkFileNames: 'assets/js/[name]-[hash].js',
-        entryFileNames: 'assets/js/[name]-[hash].js',
-        assetFileNames: 'assets/[ext]/[name]-[hash].[ext]',
-      },
-    },
-    minify: 'terser',
-    terserOptions: {
-      compress: {
-        drop_console: true,
-        drop_debugger: true,
+      input: {
+        main: './index.html',
       },
     },
   },
